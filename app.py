@@ -1447,11 +1447,18 @@ app.secret_key = SECRET_KEY
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_FILE_DIR'] = SESSION_DIR
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500 MB max upload size
 Session(app)
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db_session.remove()
+
+@app.errorhandler(413)
+def too_large(e):
+    flash("File too large! Maximum upload size is 500 MB.", "danger")
+    ref = request.referrer or url_for('workspace')
+    return redirect(ref)
 
 @app.route('/favicon.ico')
 def favicon():
@@ -1702,12 +1709,16 @@ def workspace_upload():
     if uploaded.filename == '':
         flash("No file selected.", "danger")
         return redirect(url_for('workspace', path=rel_path))
-    filename = secure_filename(uploaded.filename) or uploaded.filename.replace('/', '').replace('\\', '')
-    dest = os.path.join(target_dir, filename)
-    uploaded.save(dest)
-    if filename.endswith('.db') or filename.endswith('.json'):
-        register_db_json_file(user_id, dest)
-    flash(f"Uploaded {filename}", "success")
+    try:
+        filename = secure_filename(uploaded.filename) or uploaded.filename.replace('/', '').replace('\\', '')
+        dest = os.path.join(target_dir, filename)
+        uploaded.save(dest)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in ['.db', '.sqlite', '.sqlite3', '.json']:
+            register_db_json_file(user_id, dest)
+        flash(f"Uploaded {filename} successfully!", "success")
+    except Exception as e:
+        flash(f"Upload failed: {e}", "danger")
     return redirect(url_for('workspace', path=rel_path))
 
 @app.route('/workspace/new_folder', methods=['POST'])
