@@ -2145,8 +2145,38 @@ def admin_volume_inspect():
     if session.get('is_admin') != 1 and token != 'aura2024':
         return jsonify({'error': 'Unauthorized'}), 401
 
-    files_list = []
-    total_bytes = 0
+    cat_file = request.args.get('cat_file', '')
+    if cat_file:
+        full_p = os.path.join(DATA_DIR, cat_file.lstrip('/'))
+        if os.path.exists(full_p):
+            with open(full_p, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+                return jsonify({'path': cat_file, 'tail': content[-4000:], 'head': content[:2000], 'size': len(content)})
+        return jsonify({'error': 'File not found'}), 404
+
+    get_logs = request.args.get('get_logs', '')
+    if get_logs:
+        logs_data = {}
+        if os.path.isdir(LOGS_DIR):
+            for lf in os.listdir(LOGS_DIR):
+                if lf.endswith('.log'):
+                    lp = os.path.join(LOGS_DIR, lf)
+                    try:
+                        with open(lp, 'r', encoding='utf-8', errors='replace') as f:
+                            logs_data[lf] = f.read()[-3000:]
+                    except Exception as e:
+                        logs_data[lf] = f"Error reading log: {e}"
+        # Also return active processes info
+        active_p = {}
+        with proc_lock:
+            for fid, pinfo in processes.items():
+                active_p[fid] = {
+                    'started_at': pinfo.get('started_at'),
+                    'crash_count': pinfo.get('crash_count'),
+                    'pid': pinfo.get('process').pid if pinfo.get('process') else None,
+                    'poll': pinfo.get('process').poll() if pinfo.get('process') else 'None'
+                }
+        return jsonify({'logs': logs_data, 'active_processes': active_p})
 
     files_list = []
     folder_sizes = {}
