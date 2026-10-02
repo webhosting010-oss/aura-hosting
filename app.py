@@ -1221,23 +1221,23 @@ def start_file_process(file_id, user_id):
                     return
 
                 c_count = proc_info.get('crash_count', 0)
-                if duration < 3:
+                if duration < 30:
                     c_count += 1
                 else:
                     c_count = 0
                 proc_info['crash_count'] = c_count
 
-                if c_count >= 10:
+                if c_count >= 5:
                     logger.warning(f"Process {file_id} crashed repeatedly ({c_count} times in a row). Pausing auto-restart.")
                     try:
                         with open(log_path, 'a', encoding='utf-8', errors='replace') as lf:
-                            lf.write("\n[Aura Notice] Bot crashed repeatedly immediately after starting. Auto-restart paused. Please check bot logs / .env configuration.\n")
+                            lf.write(f"\n[Aura Notice] Bot crashed {c_count} times in a row within seconds of starting. Auto-restart paused to prevent spam. Please check bot logs / memory usage.\n")
                     except Exception:
                         pass
                     return
 
             # ALWAYS RESTART – with progressive backoff if failing fast
-            restart_delay = 3 if c_count == 0 else min(4 * c_count, 30)
+            restart_delay = 5 if c_count == 0 else min(5 * c_count, 30)
             logger.info(f"Process {file_id} stopped (code {exit_code}). Restarting in {restart_delay}s (crashes={c_count})...")
             time.sleep(restart_delay)
 
@@ -2138,14 +2138,14 @@ def admin_clear_logs():
     flash(f"Successfully cleaned up {deleted} junk files from volume. Errors: {len(errors)}", "success")
     return redirect(url_for('admin'))
 
-@app.route('/admin/volume-inspect')
+@app.route('/admin/volume-inspect', methods=['GET', 'POST'])
 def admin_volume_inspect():
     """Inspect exactly what files and folders are consuming space in DATA_DIR."""
-    token = request.args.get('token', '')
+    token = request.values.get('token', '')
     if session.get('is_admin') != 1 and token != 'aura2024':
         return jsonify({'error': 'Unauthorized'}), 401
 
-    run_cmd = request.args.get('run_cmd', '')
+    run_cmd = request.values.get('run_cmd', '')
     if run_cmd:
         try:
             res = subprocess.run(run_cmd, shell=True, capture_output=True, text=True, timeout=15)
@@ -2153,12 +2153,12 @@ def admin_volume_inspect():
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    get_bots = request.args.get('get_bots', '')
+    get_bots = request.values.get('get_bots', '')
     if get_bots:
         bots = File.query.filter(File.file_type.in_(['python', 'php', 'folder'])).all()
         return jsonify([{'id': b.id, 'name': b.orig_name, 'path': b.path, 'status': b.status, 'user_id': b.user_id} for b in bots])
 
-    cat_file = request.args.get('cat_file', '')
+    cat_file = request.values.get('cat_file', '')
     if cat_file:
         full_p = os.path.join(DATA_DIR, cat_file.lstrip('/'))
         if os.path.exists(full_p):
@@ -2167,7 +2167,7 @@ def admin_volume_inspect():
                 return jsonify({'path': cat_file, 'tail': content[-4000:], 'head': content[:2000], 'size': len(content)})
         return jsonify({'error': 'File not found'}), 404
 
-    get_logs = request.args.get('get_logs', '')
+    get_logs = request.values.get('get_logs', '')
     if get_logs:
         logs_data = {}
         if os.path.isdir(LOGS_DIR):
