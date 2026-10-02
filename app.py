@@ -1023,6 +1023,24 @@ def start_file_process(file_id, user_id):
     if file_record.pid:
         kill_process_tree(file_record.pid)
 
+    # Terminate ANY existing process running this bot file or folder across the system
+    try:
+        import psutil
+        norm_fp = os.path.abspath(file_record.path).lower()
+        curr_pid = os.getpid()
+        for p in psutil.process_iter(['pid', 'cmdline', 'cwd']):
+            try:
+                if p.pid == curr_pid:
+                    continue
+                cmd_str = ' '.join(p.info.get('cmdline') or []).lower()
+                cwd_str = (p.info.get('cwd') or '').lower()
+                if norm_fp in cmd_str or (cwd_str and (cwd_str == norm_fp or cwd_str.startswith(norm_fp + os.sep))):
+                    kill_process_tree(p.pid)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning(f"Error terminating existing bot processes: {e}")
+
     should_stop, reason = should_stop_due_to_load()
     if should_stop:
         return False, reason
