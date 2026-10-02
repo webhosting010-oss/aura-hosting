@@ -353,7 +353,50 @@ def register_db_json_file(user_id, file_path):
     logger.info(f"Auto-registered {file_type} file: {file_path}")
     return True
 
-def purge_foreign_files_in_dir(target_dir):
+def get_bot_identity(target_dir, workspace_root=None):
+    """
+    Determines bot identity based on directory contents, folder name,
+    and top-level bot directory relative to workspace root.
+    """
+    if not target_dir or not os.path.isdir(target_dir):
+        return {'is_grp': False, 'is_tmb': False, 'is_bmb': False, 'is_sel': False, 'is_root': False}
+    try:
+        dir_files = os.listdir(target_dir)
+    except Exception:
+        dir_files = []
+
+    folder_name = os.path.basename(os.path.abspath(target_dir)).lower()
+    top_folder = folder_name
+    is_root = False
+    if workspace_root and os.path.exists(workspace_root):
+        try:
+            rel = os.path.relpath(os.path.abspath(target_dir), os.path.abspath(workspace_root)).replace('\\', '/')
+            if rel == '.' or rel == '':
+                is_root = True
+                top_folder = ''
+            else:
+                top_folder = rel.split('/')[0].lower()
+        except Exception:
+            pass
+
+    names_to_check = [folder_name, top_folder]
+    is_grp = any('group' in n for n in names_to_check) or ('group.py' in dir_files or 'group_1.py' in dir_files)
+    is_tmb = any('temp_mail' in n or 'tempmail' in n for n in names_to_check) or \
+             ('mail_service.py' in dir_files) or \
+             (top_folder == 'bot' and any(x in dir_files for x in ['extractor.py', 'watcher.py', 'mail_service.py']))
+    is_bmb = any(n == 'text' or 'text' in n or 'bomber' in n or 'bom' in n for n in names_to_check) or \
+             any(x in dir_files for x in ['text.py', 'bom.py', 'bomber.py'])
+    is_sel = any('number_sell' in n or 'channel_key' in n or 'seller' in n for n in names_to_check)
+
+    return {
+        'is_grp': is_grp,
+        'is_tmb': is_tmb,
+        'is_bmb': is_bmb,
+        'is_sel': is_sel,
+        'is_root': is_root
+    }
+
+def purge_foreign_files_in_dir(target_dir, workspace_root=None, is_workspace_root=False):
     """
     Cleans up foreign database/json files that belong to other bots,
     ensuring each folder strictly only keeps its own files.
@@ -361,24 +404,38 @@ def purge_foreign_files_in_dir(target_dir):
     if not target_dir or not os.path.isdir(target_dir):
         return
     try:
-        dir_files = os.listdir(target_dir)
-        folder_name = os.path.basename(os.path.abspath(target_dir)).lower()
-        is_group = ('group' in folder_name or 'group.py' in dir_files or 'group_1.py' in dir_files)
-        is_tempmail = ('temp_mail' in folder_name or 'tempmail' in folder_name or 'mail_service.py' in dir_files)
-        is_bomber = ('bomber' in folder_name or 'bom' in folder_name)
+        ident = get_bot_identity(target_dir, workspace_root)
+        if is_workspace_root:
+            ident['is_root'] = True
 
+        dir_files = os.listdir(target_dir)
         changed = False
         for name in dir_files:
             full = os.path.join(target_dir, name)
             if not os.path.isfile(full):
                 continue
+            name_lower = name.lower()
             to_purge = False
-            if is_group and name in ['tempmail.db', 'tempmail_backup.db', 'bla1st_data.json', 'bot.db', 'bot_config.json']:
-                to_purge = True
-            elif is_tempmail and name in ['database.json', 'bla1st_data.json', 'bot.db', 'bot_config.json']:
-                to_purge = True
-            elif is_bomber and name in ['tempmail.db', 'tempmail_backup.db', 'database.json']:
-                to_purge = True
+
+            # 1. database.json & backups -> ONLY in Group bot
+            if name_lower == 'database.json' or name_lower.startswith('database_backup') or name_lower.startswith('database_'):
+                if ident['is_root'] or not ident['is_grp']:
+                    to_purge = True
+
+            # 2. tempmail.db & tempmail_backup.db -> ONLY in Tempmail bot
+            elif name_lower in ['tempmail.db', 'tempmail_backup.db']:
+                if ident['is_root'] or not ident['is_tmb']:
+                    to_purge = True
+
+            # 3. bla1st_data.json -> ONLY in Bomber/Text bot
+            elif name_lower == 'bla1st_data.json':
+                if ident['is_root'] or not ident['is_bmb']:
+                    to_purge = True
+
+            # 4. bot.db & bot_config.json -> ONLY in Seller bot
+            elif name_lower in ['bot.db', 'bot_config.json']:
+                if ident['is_root'] or not ident['is_sel']:
+                    to_purge = True
 
             if to_purge:
                 try:
@@ -396,6 +453,21 @@ def purge_foreign_files_in_dir(target_dir):
     except Exception as e:
         logger.error(f"Error in purge_foreign_files_in_dir: {e}")
 
+def cleanup_user_workspace_pollution(user_id):
+    """
+    Crawls user's entire workspace directory and purges foreign files from all folders.
+    """
+    try:
+        ws = get_user_workspace(user_id)
+        if not ws or not os.path.exists(ws):
+            return
+        ws_abs = os.path.abspath(ws)
+        for root, dirs, files in os.walk(ws):
+            is_root = (os.path.abspath(root) == ws_abs)
+            purge_foreign_files_in_dir(root, workspace_root=ws, is_workspace_root=is_root)
+    except Exception as e:
+        logger.error(f"Error in cleanup_user_workspace_pollution for user {user_id}: {e}")
+
 def cleanup_cross_folder_pollution():
     """
     Crawls the entire persistent volume workspace on startup and purges
@@ -405,13 +477,21 @@ def cleanup_cross_folder_pollution():
     if not os.path.exists(ws_base):
         return
     logger.info("Proactively running cross-folder pollution cleanup...")
-    for root, dirs, files in os.walk(ws_base):
-        purge_foreign_files_in_dir(root)
+    try:
+        for user_folder in os.listdir(ws_base):
+            u_path = os.path.join(ws_base, user_folder)
+            if os.path.isdir(u_path):
+                ws_abs = os.path.abspath(u_path)
+                for root, dirs, files in os.walk(u_path):
+                    is_root = (os.path.abspath(root) == ws_abs)
+                    purge_foreign_files_in_dir(root, workspace_root=u_path, is_workspace_root=is_root)
+    except Exception as e:
+        logger.error(f"Error in cleanup_cross_folder_pollution: {e}")
 
 def scan_workspace_for_db_json(user_id):
     workspace = get_user_workspace(user_id)
+    cleanup_user_workspace_pollution(user_id)
     for root, dirs, files in os.walk(workspace):
-        purge_foreign_files_in_dir(root)
         for f in os.listdir(root):
             if f.endswith('.db') or f.endswith('.json'):
                 full_path = os.path.join(root, f)
@@ -1393,6 +1473,7 @@ def admin_required(f):
 @login_required
 def workspace():
     user_id = session['user_id']
+    cleanup_user_workspace_pollution(user_id)
     workspace_path = get_user_workspace(user_id)
     rel_path = request.args.get('path', '')
     current_dir = get_safe_path(user_id, rel_path)
@@ -1401,7 +1482,8 @@ def workspace():
         return redirect(url_for('workspace'))
     if not os.path.isdir(current_dir):
         return redirect(url_for('workspace_edit', path=rel_path))
-    purge_foreign_files_in_dir(current_dir)
+    is_root = (os.path.abspath(current_dir) == os.path.abspath(workspace_path))
+    purge_foreign_files_in_dir(current_dir, workspace_root=workspace_path, is_workspace_root=is_root)
     items = []
     for name in sorted(os.listdir(current_dir)):
         full = os.path.join(current_dir, name)
@@ -1417,6 +1499,15 @@ def workspace():
         })
     parent = os.path.dirname(rel_path).replace('\\', '/') if rel_path else ''
     return render_template('workspace.html', items=items, current_path=rel_path.replace('\\', '/'), parent_path=parent)
+
+@app.route('/workspace/clean')
+@login_required
+def workspace_clean():
+    user_id = session['user_id']
+    cleanup_user_workspace_pollution(user_id)
+    flash("All bot folders successfully isolated! Foreign databases and JSON files have been purged.", "success")
+    rel_path = request.args.get('path', '')
+    return redirect(url_for('workspace', path=rel_path))
 
 @app.route('/workspace/edit')
 @login_required
@@ -1705,10 +1796,11 @@ def admin_workspace(user_id):
     current_dir = get_safe_path(user_id, rel_path)
     if not current_dir or not os.path.exists(current_dir):
         flash("Invalid path.", "danger")
-        return redirect(url_for('admin_workspace', user_id=user_id))
     if not os.path.isdir(current_dir):
         return redirect(url_for('admin_workspace_edit', user_id=user_id, path=rel_path))
-    purge_foreign_files_in_dir(current_dir)
+    cleanup_user_workspace_pollution(user_id)
+    is_root = (os.path.abspath(current_dir) == os.path.abspath(user_workspace))
+    purge_foreign_files_in_dir(current_dir, workspace_root=user_workspace, is_workspace_root=is_root)
     items = []
     for name in sorted(os.listdir(current_dir)):
         full = os.path.join(current_dir, name)
@@ -2478,6 +2570,7 @@ def admin_execute_sql(db_id):
 @login_required
 def my_databases():
     user_id = session['user_id']
+    cleanup_user_workspace_pollution(user_id)
     workspace_root = os.path.abspath(get_user_workspace(user_id))
     db_files = File.query.filter_by(user_id=user_id, file_type='database').all()
     valid_db_files = []
@@ -2636,6 +2729,7 @@ def my_execute_sql(db_id):
 @login_required
 def my_json_files():
     user_id = session['user_id']
+    cleanup_user_workspace_pollution(user_id)
     workspace_root = os.path.abspath(get_user_workspace(user_id))
     json_files = File.query.filter_by(user_id=user_id, file_type='json').all()
     valid_json_files = []

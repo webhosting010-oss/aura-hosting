@@ -41,6 +41,10 @@
                     <i class="fa-solid fa-folder-plus"></i> New Folder
                 </button>
             </form>
+
+            <a href="{{ url_for('workspace_clean', path=current_path) }}" class="btn-cyber-secondary" title="Auto-isolate folders: purge foreign database & JSON files" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; font-size: 0.85rem;">
+                <i class="fa-solid fa-broom"></i> Clean Isolation
+            </a>
         </div>
 
         <div>
