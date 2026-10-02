@@ -117,6 +117,9 @@
                 <a href="{{ url_for('edit_file', file_id=file.id) }}" class="btn-cyber-secondary" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;">
                     <i class="fa-solid fa-code"></i> Edit
                 </a>
+                <a href="{{ url_for('workspace', path=file.orig_name) }}" class="btn-cyber-secondary" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;" title="Open Bot Folder in File Manager">
+                    <i class="fa-solid fa-folder-open"></i> Files
+                </a>
                 <button class="btn-cyber-secondary btn-logs" data-id="{{ file.id }}" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;">
                     <i class="fa-solid fa-list-check"></i> Logs
                 </button>

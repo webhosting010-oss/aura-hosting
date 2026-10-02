@@ -23,14 +23,22 @@
                 <i class="fa-solid fa-database" style="font-size: 1.4rem;"></i>
             </div>
             <div>
-                <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff;">{{ db.orig_name }}</h3>
-                <span style="font-size: 0.78rem; color: var(--text-dim);">SQLite Storage</span>
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 0.25rem;">{{ db.orig_name }}</h3>
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <span style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); padding: 0.2rem 0.55rem; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem;">
+                        <i class="fa-solid fa-folder-open"></i> {{ db.folder_name }}
+                    </span>
+                    <span style="font-size: 0.75rem; color: var(--text-dim);">SQLite Storage</span>
+                </div>
             </div>
         </div>
 
         <div style="display: flex; gap: 0.5rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem; align-items: center;">
             <a href="{{ url_for('my_database_tables', db_id=db.id) }}" class="btn-cyber-primary" style="flex: 1; justify-content: center; text-decoration: none;">
                 <i class="fa-solid fa-table"></i> Browse Tables & SQL
+            </a>
+            <a href="{{ url_for('workspace', path=db.folder_name if db.folder_name != 'Root' else '') }}" class="btn-cyber-secondary" style="padding: 0.75rem 0.95rem !important; text-decoration: none;" title="Open in File Manager">
+                <i class="fa-solid fa-folder"></i>
             </a>
             <form method="POST" action="{{ url_for('my_database_delete', db_id=db.id) }}" onsubmit="return confirm('Are you sure you want to permanently delete {{ db.orig_name }}?');" style="margin: 0;">
                 <button type="submit" class="btn-cyber-danger" style="padding: 0.75rem 0.95rem !important;" title="Delete Database">

@@ -2420,6 +2420,7 @@ def admin_execute_sql(db_id):
 @login_required
 def my_databases():
     user_id = session['user_id']
+    workspace_root = os.path.abspath(get_user_workspace(user_id))
     db_files = File.query.filter_by(user_id=user_id, file_type='database').all()
     valid_db_files = []
     need_commit = False
@@ -2429,6 +2430,14 @@ def my_databases():
             db_session.delete(db_file)
             need_commit = True
         else:
+            try:
+                rel = os.path.relpath(os.path.abspath(db_file.path), workspace_root).replace('\\', '/')
+                folder = rel.split('/')[0] if '/' in rel else ''
+                db_file.folder_name = folder if folder else 'Root'
+                db_file.rel_path = rel
+            except Exception:
+                db_file.folder_name = 'Root'
+                db_file.rel_path = db_file.orig_name
             valid_db_files.append(db_file)
     if need_commit:
         db_session.commit()
@@ -2569,6 +2578,7 @@ def my_execute_sql(db_id):
 @login_required
 def my_json_files():
     user_id = session['user_id']
+    workspace_root = os.path.abspath(get_user_workspace(user_id))
     json_files = File.query.filter_by(user_id=user_id, file_type='json').all()
     valid_json_files = []
     need_commit = False
@@ -2578,6 +2588,14 @@ def my_json_files():
             db_session.delete(jf)
             need_commit = True
         else:
+            try:
+                rel = os.path.relpath(os.path.abspath(jf.path), workspace_root).replace('\\', '/')
+                folder = rel.split('/')[0] if '/' in rel else ''
+                jf.folder_name = folder if folder else 'Root'
+                jf.rel_path = rel
+            except Exception:
+                jf.folder_name = 'Root'
+                jf.rel_path = jf.orig_name
             valid_json_files.append(jf)
     if need_commit:
         db_session.commit()
@@ -3194,6 +3212,22 @@ with app.app_context():
             tmb_env = os.path.join(tmb_dir, '.env')
             if os.path.exists(bot_env) and not os.path.exists(tmb_env):
                 shutil.copy2(bot_env, tmb_env)
+
+            # Ensure strict isolation: database.json belongs ONLY to group_1
+            for isolated in [tmb_dir, bot_dir]:
+                bad_db_json = os.path.join(isolated, 'database.json')
+                if os.path.exists(bad_db_json):
+                    try:
+                        os.remove(bad_db_json)
+                    except Exception:
+                        pass
+            for bad_bot_db in ['bot.db', 'bot_config.json']:
+                bad_p = os.path.join(tmb_dir, bad_bot_db)
+                if os.path.exists(bad_p):
+                    try:
+                        os.remove(bad_p)
+                    except Exception:
+                        pass
 
             dynamic_socket_snippet = '''def ensure_single_instance(port: int = None):
     global _single_instance_socket
