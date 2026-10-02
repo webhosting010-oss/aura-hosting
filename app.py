@@ -353,10 +353,66 @@ def register_db_json_file(user_id, file_path):
     logger.info(f"Auto-registered {file_type} file: {file_path}")
     return True
 
+def purge_foreign_files_in_dir(target_dir):
+    """
+    Cleans up foreign database/json files that belong to other bots,
+    ensuring each folder strictly only keeps its own files.
+    """
+    if not target_dir or not os.path.isdir(target_dir):
+        return
+    try:
+        dir_files = os.listdir(target_dir)
+        folder_name = os.path.basename(os.path.abspath(target_dir)).lower()
+        is_group = ('group' in folder_name or 'group.py' in dir_files or 'group_1.py' in dir_files)
+        is_tempmail = ('temp_mail' in folder_name or 'tempmail' in folder_name or 'mail_service.py' in dir_files)
+        is_bomber = ('bomber' in folder_name or 'bom' in folder_name)
+
+        changed = False
+        for name in dir_files:
+            full = os.path.join(target_dir, name)
+            if not os.path.isfile(full):
+                continue
+            to_purge = False
+            if is_group and name in ['tempmail.db', 'tempmail_backup.db', 'bla1st_data.json', 'bot.db', 'bot_config.json']:
+                to_purge = True
+            elif is_tempmail and name in ['database.json', 'bla1st_data.json', 'bot.db', 'bot_config.json']:
+                to_purge = True
+            elif is_bomber and name in ['tempmail.db', 'tempmail_backup.db', 'database.json']:
+                to_purge = True
+
+            if to_purge:
+                try:
+                    os.remove(full)
+                    File.query.filter_by(path=full).delete()
+                    changed = True
+                    logger.warning(f"Purged foreign file {name} from {target_dir}")
+                except Exception as e:
+                    logger.error(f"Error purging foreign file {full}: {e}")
+        if changed:
+            try:
+                db_session.commit()
+            except Exception:
+                db_session.rollback()
+    except Exception as e:
+        logger.error(f"Error in purge_foreign_files_in_dir: {e}")
+
+def cleanup_cross_folder_pollution():
+    """
+    Crawls the entire persistent volume workspace on startup and purges
+    any foreign database/json files from every bot folder.
+    """
+    ws_base = os.path.join(DATA_DIR, 'workspace')
+    if not os.path.exists(ws_base):
+        return
+    logger.info("Proactively running cross-folder pollution cleanup...")
+    for root, dirs, files in os.walk(ws_base):
+        purge_foreign_files_in_dir(root)
+
 def scan_workspace_for_db_json(user_id):
     workspace = get_user_workspace(user_id)
     for root, dirs, files in os.walk(workspace):
-        for f in files:
+        purge_foreign_files_in_dir(root)
+        for f in os.listdir(root):
             if f.endswith('.db') or f.endswith('.json'):
                 full_path = os.path.join(root, f)
                 register_db_json_file(user_id, full_path)
@@ -1345,6 +1401,7 @@ def workspace():
         return redirect(url_for('workspace'))
     if not os.path.isdir(current_dir):
         return redirect(url_for('workspace_edit', path=rel_path))
+    purge_foreign_files_in_dir(current_dir)
     items = []
     for name in sorted(os.listdir(current_dir)):
         full = os.path.join(current_dir, name)
@@ -1651,6 +1708,7 @@ def admin_workspace(user_id):
         return redirect(url_for('admin_workspace', user_id=user_id))
     if not os.path.isdir(current_dir):
         return redirect(url_for('admin_workspace_edit', user_id=user_id, path=rel_path))
+    purge_foreign_files_in_dir(current_dir)
     items = []
     for name in sorted(os.listdir(current_dir)):
         full = os.path.join(current_dir, name)
@@ -3270,6 +3328,11 @@ with app.app_context():
     except Exception as e:
         logger.warning(f"Error during auto-sync of bots: {e}")
 
+    try:
+        cleanup_cross_folder_pollution()
+    except Exception as e:
+        logger.error(f"Error in startup cross-folder pollution cleanup: {e}")
+
 # -----------------------------------------------------------------------------
 # 11. Automated Volume & Log Cleanup Background Thread
 # Keeps /tmp/aura_logs clean and purges volume sandboxes, pycache, and logs
@@ -3321,6 +3384,9 @@ def _log_cleanup_worker():
                                 os.remove(os.path.join(root, f))
                             except Exception:
                                 pass
+
+            # 3. Clean cross-folder database/json pollution periodically
+            cleanup_cross_folder_pollution()
 
         except Exception as e:
             logger.warning(f"Background cleanup exception: {e}")
