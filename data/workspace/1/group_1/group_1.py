@@ -77,6 +77,8 @@ if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is required. Add it as an environment secret before starting the bot.")
 ADMIN_ID: int = 6566593716
 DB_FILE: str = "database.json"
+DEFAULT_LOG_CHANNEL_ID: str = "-1003733836451"
+LOG_CHANNEL_ID: str = os.environ.get("LOG_CHANNEL_ID", DEFAULT_LOG_CHANNEL_ID).strip()
 USERS_PER_PAGE: int = 15
 PORT: int = int(os.environ.get("PORT", 8080))
 
@@ -85,13 +87,13 @@ BLACKLISTED_IDS: List[str] = ["6352329758", "6566593716"]
 
 _NUM_API_URL: str = os.environ.get(
     "NUM_API_URL",
-    "https://auraxinfo-production.up.railway.app/api?key=auraontop&type=mobile&term={number}",
+    "https://auraxinfo-production.up.railway.app/api?key=aurahehe&type=mobile&term={number}",
 ).strip()
 if "uersxinfo" in _NUM_API_URL or not _NUM_API_URL:
-    _NUM_API_URL = "https://auraxinfo-production.up.railway.app/api?key=auraontop&type=mobile&term={number}"
+    _NUM_API_URL = "https://auraxinfo-production.up.railway.app/api?key=aurahehe&type=mobile&term={number}"
 TG_LOOKUP_API_URL: str = os.environ.get(
     "TG_LOOKUP_API_URL",
-    "https://auraxinfo-production.up.railway.app/api?key=auraontop&type=tg&term=",
+    "https://auraxinfo-production.up.railway.app/api?key=aurahehe&type=tg&term=",
 ).strip()
 LEAK_API_URL: str = os.environ.get("LEAK_API_URL", "").strip()
 LEAK_API_KEY: str = os.environ.get("LEAK_API_KEY", "").strip()
@@ -99,7 +101,7 @@ LEAK_API_KEY: str = os.environ.get("LEAK_API_KEY", "").strip()
 # OSINT API Configuration (used by /leak and /email)
 OSINT_API_URL: str = os.environ.get(
     "OSINT_API_URL",
-    "https://auraxinfo-production.up.railway.app/api?key=auraontop&type=osint&term={term}",
+    "https://auraxinfo-production.up.railway.app/api?key=aurahehe&type=osint&term={term}",
 ).strip()
 PHONE_LOOKUP_API_URL: str = os.environ.get("PHONE_LOOKUP_API_URL", "").strip()
 IP_INFO_API_URL: str = os.environ.get(
@@ -123,13 +125,13 @@ VEHICLE_API_KEY: str = os.environ.get("VEHICLE_API_KEY", "auraowner").strip()
 # Aadhaar API Configuration
 AADHAAR_API_URL: str = os.environ.get(
     "AADHAAR_API_URL",
-    "https://auraxinfo-production.up.railway.app/api?key=auraontop&type=aadhaar&term={aadhaar}",
+    "https://auraxinfo-production.up.railway.app/api?key=aurahehe&type=aadhaar&term={aadhaar}",
 ).strip()
 
 # Number to Vehicle API Configuration
 NUM2VEH_API_URL: str = os.environ.get(
     "NUM2VEH_API_URL",
-    "https://auraxinfo-production.up.railway.app/api?key=auraontop&type=num_vehicle&term={number}",
+    "https://auraxinfo-production.up.railway.app/api?key=aurahehe&type=num_vehicle&term={number}",
 ).strip()
 
 # -------------------- COLORED INLINE BUTTONS --------------------
@@ -581,9 +583,8 @@ def load_db() -> Dict[str, Any]:
         with open(DB_FILE, "r") as f:
             data = json.load(f)
             defaults = {
-                "users": [],
-                "groups": [],
                 "approved_groups": [],
+                "log_channel_id": LOG_CHANNEL_ID,
                 "approved_groups_meta": {},
                 "official_group_id": None,
                 "official_group_link": SECRET_GROUP_LINK,
@@ -639,25 +640,66 @@ def theme_text(text: str) -> str:
         text = text.replace(source, target)
     return text
 
-def register_user(chat_id: int, chat_type: str, user_id: Optional[int] = None) -> None:
+def register_user(chat_id: int, chat_type: str, user_id: Optional[int] = None, bot: Any = None, user_obj: Any = None) -> None:
     db = load_db()
     changed = False
+    is_new_user = False
+    is_new_group = False
     chat_id_str = str(chat_id)
     if chat_type == ChatType.PRIVATE:
         if chat_id_str not in db["users"]:
             db["users"].append(chat_id_str)
             changed = True
+            is_new_user = True
     else:
         if chat_id_str not in db["groups"]:
             db["groups"].append(chat_id_str)
             changed = True
+            is_new_group = True
     if user_id is not None:
         user_id_str = str(user_id)
         if user_id_str not in db["users"]:
             db["users"].append(user_id_str)
             changed = True
+            is_new_user = True
     if changed:
         save_db(db)
+        if bot and (is_new_user or is_new_group):
+            asyncio.create_task(notify_new_user_and_backup(bot, chat_id, chat_type, user_id, user_obj, is_new_user, is_new_group))
+
+async def notify_new_user_and_backup(bot, chat_id: int, chat_type: str, user_id: Optional[int], user_obj: Any, is_new_user: bool, is_new_group: bool) -> None:
+    """Dispatches a New User/Group alert and automatic database backup to the Log Channel."""
+    log_channel = get_log_channel()
+    if not log_channel:
+        return
+    now_ist = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %I:%M:%S %p")
+    target_uid = user_id or chat_id
+    uname = ""
+    fullname = ""
+    mention = f"<code>{target_uid}</code>"
+    if user_obj:
+        fullname = html.escape(getattr(user_obj, "full_name", "") or "Unknown")
+        uname = f"@{user_obj.username}" if getattr(user_obj, "username", None) else "No Username"
+        mention = f'<a href="tg://user?id={target_uid}">{fullname}</a>'
+    
+    event_title = "🆕 <b>NEW USER JOINED BOT</b>" if is_new_user else "👥 <b>NEW GROUP REGISTERED</b>"
+    msg = (
+        f"{event_title}\n"
+        f"────────────────────────────\n"
+        f"👤 <b>User:</b> {mention} ({uname})\n"
+        f"🆔 <b>ID:</b> <code>{target_uid}</code>\n"
+        f"💬 <b>Chat Type:</b> <code>{chat_type}</code>\n"
+        f"⏰ <b>Time (IST):</b> <code>{now_ist}</code>\n"
+        f"────────────────────────────"
+    )
+    try:
+        await bot.send_message(chat_id=log_channel, text=msg, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    except Exception as e:
+        logger.warning(f"Could not send new user alert to {log_channel}: {e}")
+    try:
+        await send_database_backup(bot, reason=f"New Registration: ID {target_uid} ({chat_type})")
+    except Exception as e:
+        logger.warning(f"Could not send backup on new user: {e}")
 
 def is_command_disabled(command_name: str) -> bool:
     db = load_db()
@@ -678,12 +720,27 @@ def set_bot_offline(state: bool) -> bool:
 # -------------------- GROUP AUTHORIZATION & APPROVALS --------------------
 def is_group_authorized(chat_id: Union[int, str]) -> bool:
     db = load_db()
-    cid = str(chat_id)
-    official_id = str(db.get("official_group_id") or "")
-    if official_id and cid == official_id:
+    cid = str(chat_id).strip()
+    official_id = str(db.get("official_group_id") or "").strip()
+    
+    def match(a: str, b: str) -> bool:
+        if not a or not b:
+            return False
+        if a == b:
+            return True
+        a_clean = a.replace("-100", "").replace("-", "")
+        b_clean = b.replace("-100", "").replace("-", "")
+        return a_clean == b_clean and len(a_clean) > 5
+
+    if official_id and match(cid, official_id):
         return True
-    approved = [str(x) for x in db.get("approved_groups", [])]
-    return cid in approved
+    
+    approved = [str(x).strip() for x in db.get("approved_groups", [])]
+    for app_id in approved:
+        if match(cid, app_id):
+            return True
+            
+    return False
 
 def add_approved_group(chat_id: Union[int, str], title: str = "") -> bool:
     db = load_db()
@@ -837,18 +894,236 @@ async def send_group_revocation_announcement(bot, chat_id: Union[int, str]) -> b
     keyboard = [[
         InlineKeyboardButton(btn_text, url=official_link, _emoji_id=btn_emoji)
     ]]
+    msg = await safe_send_group_message(
+        bot,
+        chat_id,
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+    return msg is not None
+
+async def send_group_approval_announcement(bot, chat_id: Union[int, str]) -> bool:
+    text = get_group_approved_announcement()
+    official_link = get_official_group_link()
+    keyboard = [[
+        InlineKeyboardButton("🚀 JOIN OFFICIAL GROUP", url=official_link, _emoji_id="6138734238628845209")
+    ]]
+    msg = await safe_send_group_message(
+        bot,
+        chat_id,
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+    return msg is not None
+
+
+# -------------------- BULLETPROOF MESSAGE SENDER --------------------
+async def safe_send_group_message(bot, chat_id: Union[int, str], text: str, reply_markup=None):
+    """Safely sends a message to a group/chat with HTML fallback to avoid Telegram entity parse crashes."""
     try:
-        await bot.send_message(
+        return await bot.send_message(
             chat_id=chat_id,
             text=text,
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             disable_web_page_preview=True,
         )
+    except Exception as e:
+        logger.warning(f"HTML send failed to {chat_id}: {e}, falling back to plain text...")
+        clean_text = re.sub(r'<[^>]+>', '', text)
+        try:
+            return await bot.send_message(
+                chat_id=chat_id,
+                text=clean_text,
+                reply_markup=reply_markup,
+                disable_web_page_preview=True,
+            )
+        except Exception as e2:
+            logger.error(f"Failed to send message to {chat_id}: {e2}")
+            return None
+
+def get_log_channel() -> str:
+    db = load_db()
+    return str(db.get("log_channel_id") or LOG_CHANNEL_ID or "").strip()
+
+def set_log_channel(channel_id: Union[int, str]) -> None:
+    db = load_db()
+    db["log_channel_id"] = str(channel_id).strip()
+    save_db(db)
+    add_log("ADMIN", f"Log channel set to {channel_id}")
+
+DEFAULT_REPORT_TITLES: Dict[str, str] = {
+    "tg": "TELEGRAM ID INFO",
+    "num": "NUMBER INFO",
+    "number": "NUMBER INFO",
+    "ip": "IP INFO",
+    "adhar": "AADHAAR INFO",
+    "aadhaar": "AADHAAR INFO",
+    "ffinfo": "FREE FIRE INFO",
+    "freefire": "FREE FIRE INFO",
+    "veh": "VEHICLE RC INFO",
+    "vehicle": "VEHICLE RC INFO",
+    "num2veh": "NUMBER TO VEHICLE INFO",
+    "leak": "LEAK DATABASE INFO",
+    "email": "EMAIL INFO",
+}
+
+async def send_search_log(
+    bot,
+    user=None,
+    chat=None,
+    command_name: str = "lookup",
+    query_term: str = "",
+    status: str = "SUCCESS",
+    info_payload: str = "",
+    report_title: str = "",
+    user_mention: Optional[str] = None,
+) -> None:
+    """Asynchronously dispatches a structured search log along with result data to the configured log channel and triggers a db backup."""
+    log_channel = get_log_channel()
+    if not log_channel:
+        return
+
+    user_id = "Unknown"
+    user_uname = "No Username"
+    final_user_mention = ""
+
+    if user and hasattr(user, "id"):
+        user_id = user.id
+        user_name = html.escape(getattr(user, "full_name", None) or getattr(user, "first_name", None) or "User")
+        user_uname = f"@{user.username}" if getattr(user, "username", None) else "No Username"
+        final_user_mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
+    elif user_mention:
+        final_user_mention = user_mention
+        m_id = re.search(r'id=(\d+)', user_mention)
+        if m_id:
+            user_id = m_id.group(1)
+    else:
+        final_user_mention = "Unknown User"
+
+    if chat and hasattr(chat, "type") and chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        chat_info = f"<b>Group:</b> {html.escape(chat.title or 'Unknown')} (<code>{chat.id}</code>)"
+    elif chat and hasattr(chat, "id"):
+        chat_info = f"<b>Chat ID:</b> <code>{chat.id}</code>"
+    elif isinstance(chat, (int, str)) and str(chat).startswith("-"):
+        chat_info = f"<b>Group ID:</b> <code>{chat}</code>"
+    else:
+        chat_info = "<b>Chat:</b> Private DM"
+
+    now_ist = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %I:%M:%S %p")
+    clean_cmd = str(command_name).lower().replace("/", "").strip()
+
+    if not report_title:
+        report_title = DEFAULT_REPORT_TITLES.get(clean_cmd, f"{clean_cmd.upper()} INFO")
+
+    log_msg = (
+        f"🔍 <b>SEARCH LOG RECORD</b>\n"
+        f"────────────────────────────\n"
+        f"👤 <b>User:</b> {final_user_mention} ({user_uname})\n"
+        f"🆔 <b>User ID:</b> <code>{user_id}</code>\n"
+        f"💬 {chat_info}\n"
+        f"⚡ <b>Command:</b> <code>/{clean_cmd}</code>\n"
+        f"⏰ <b>Time (IST):</b> <code>{now_ist}</code>\n"
+        f"────────────────────────────"
+    )
+
+    target_emoji_id = INFO_EMOJI_IDS.get("target", "5332670483210974079")
+    report_emoji_id = INFO_EMOJI_IDS.get("report", "6096080291347042802")
+
+    if info_payload:
+        clean_payload = str(info_payload).strip()
+        if len(clean_payload) > 3200:
+            clean_payload = clean_payload[:3200] + "\n... (truncated)"
+        log_msg += (
+            f"\n<tg-emoji emoji-id=\"{target_emoji_id}\">🎯</tg-emoji> TARGET: <code>{html.escape(str(query_term))}</code>\n"
+            f"<tg-emoji emoji-id=\"{report_emoji_id}\">📁</tg-emoji> REPORT: {html.escape(str(report_title))}\n\n"
+            f"<pre><code class='language-json'>{html.escape(clean_payload)}</code></pre>\n"
+            f"────────────────────────────"
+        )
+    else:
+        log_msg += (
+            f"\n🎯 <b>Search Term:</b> <code>{html.escape(str(query_term))}</code>\n"
+            f"📊 <b>Status:</b> <code>{status}</code>\n"
+            f"────────────────────────────"
+        )
+
+    try:
+        await bot.send_message(
+            chat_id=log_channel,
+            text=log_msg,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
+    except Exception as e:
+        logger.warning(f"Could not dispatch formatted search log to {log_channel}: {e}. Retrying without custom emojis...")
+        try:
+            plain_log_msg = re.sub(r'</?tg-emoji[^>]*>', '', log_msg)
+            await bot.send_message(
+                chat_id=log_channel,
+                text=plain_log_msg,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+        except Exception as e2:
+            logger.error(f"Fallback search log failed: {e2}")
+
+    # Auto-dispatch database backup on search log event
+    try:
+        await send_database_backup(bot, reason=f"Search Log Event: /{clean_cmd} by {user_id}")
+    except Exception as e:
+        logger.warning(f"Could not dispatch search db backup: {e}")
+
+async def send_database_backup(bot, reason: str = "Automated Backup") -> bool:
+    """Sends database.json backup directly to the log channel with full statistics."""
+    log_channel = get_log_channel()
+    if not log_channel:
+        return False
+    if not os.path.exists(DB_FILE):
+        return False
+
+    db = load_db()
+    now_ist = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %I:%M:%S %p")
+    total_users = len(db.get("users", []))
+    total_groups = len(db.get("groups", []))
+    approved_groups = len(db.get("approved_groups", []))
+    file_size_kb = round(os.path.getsize(DB_FILE) / 1024, 2)
+
+    caption = (
+        f"📦 <b>DATABASE BACKUP</b>\n"
+        f"────────────────────────────\n"
+        f"📌 <b>Reason:</b> {reason}\n"
+        f"👥 <b>Total Users:</b> <code>{total_users}</code>\n"
+        f"👥 <b>Total Groups:</b> <code>{total_groups}</code>\n"
+        f"✅ <b>Approved Groups:</b> <code>{approved_groups}</code>\n"
+        f"💾 <b>File Size:</b> <code>{file_size_kb} KB</code>\n"
+        f"⏰ <b>Time (IST):</b> <code>{now_ist}</code>\n"
+        f"────────────────────────────"
+    )
+
+    try:
+        with open(DB_FILE, "rb") as doc:
+            await bot.send_document(
+                chat_id=log_channel,
+                document=doc,
+                filename=f"database_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                caption=caption,
+                parse_mode=ParseMode.HTML,
+            )
+        logger.info(f"Database backup successfully dispatched to {log_channel}")
         return True
     except Exception as e:
-        logger.warning(f"Could not send revocation announcement to group {chat_id}: {e}")
+        logger.warning(f"Could not send database backup to {log_channel}: {e}")
         return False
+
+async def periodic_backup_loop(app):
+    """Background task that sends database backup to log channel every 1 hour."""
+    await asyncio.sleep(60) # Initial wait after bot boot
+    while True:
+        try:
+            await send_database_backup(app.bot, reason="Scheduled Hourly Auto-Backup")
+        except Exception as e:
+            logger.error(f"Error during scheduled backup: {e}")
+        await asyncio.sleep(3600) # Every 1 hour
 
 def get_user_mention(user) -> str:
     name = user.first_name if user.first_name else "User"
@@ -1319,54 +1594,34 @@ def maintenance_aware(func):
     return wrapper
 
 def info_group_restricted(func):
-    """Restricts INFO lookup commands to official or approved groups only."""
+    """Restricts commands in groups to official or approved groups only."""
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
-        chat = update.effective_chat
-        
-        if chat:
-            logger.info(f"[GROUP_CMD] chat_id={chat.id} type={chat.type} title={getattr(chat, 'title', None)!r} user={user.id if user else None}")
-
         if user and user.id == ADMIN_ID:
             return await func(update, context)
-            
+        chat = update.effective_chat
         if chat and chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-            # Auto-detect official group by title or if official_group_id is not configured
-            title = getattr(chat, 'title', '') or ''
-            title_lower = title.lower()
-            is_official = False
-            if "user to info" in title_lower or "usertoinfo" in title_lower or any(k in title for k in ["𝐔ꜱᴇʀ", "𝐈ɴꜰᴏ", "ᴜꜱᴇʀ", "ɪɴꜰᴏ", "USER TO INFO"]):
-                is_official = True
-            
-            db = load_db()
-            if not db.get("official_group_id") and is_official:
-                set_official_group(chat.id)
-                add_approved_group(chat.id, title)
-                logger.info(f"Auto-configured official group: {chat.id} ({title})")
-            
-            if is_official or is_group_authorized(chat.id):
-                return await func(update, context)
-
-            official_link = get_official_group_link()
-            btn_text = get_group_alert_btn_text()
-            btn_emoji = get_group_alert_btn_emoji()
-            keyboard = [
-                [InlineKeyboardButton(
-                    btn_text,
-                    url=official_link,
-                    _emoji_id=btn_emoji,
-                )]
-            ]
-            alert_text = get_group_alert_msg()
-            if update.message:
-                await update.message.reply_text(
-                    alert_text,
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    disable_web_page_preview=True,
-                )
-            return
+            if not is_group_authorized(chat.id):
+                official_link = get_official_group_link()
+                btn_text = get_group_alert_btn_text()
+                btn_emoji = get_group_alert_btn_emoji()
+                keyboard = [
+                    [InlineKeyboardButton(
+                        btn_text,
+                        url=official_link,
+                        _emoji_id=btn_emoji,
+                    )]
+                ]
+                alert_text = get_group_alert_msg()
+                if update.message:
+                    await safe_send_group_message(
+                        context.bot,
+                        chat.id,
+                        alert_text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                    )
+                return
         return await func(update, context)
     return wrapper
 
@@ -1656,6 +1911,8 @@ async def send_info_report_parts(
     report_title: str = "SCROLL OF TRUTH",
     delete_label: str = "",
     delay: float = 0.5,
+    user: Optional[Any] = None,
+    chat: Optional[Any] = None,
 ) -> None:
     chunks = split_text_by_lines(payload)
     total_parts = len(chunks)
@@ -1699,6 +1956,22 @@ async def send_info_report_parts(
         if index < total_parts - 1:
             await asyncio.sleep(delay)
 
+    # Dispatch full search log with rich info report and trigger DB backup
+    target_chat = chat if chat is not None else (status_message.chat if hasattr(status_message, "chat") else chat_id)
+    asyncio.create_task(
+        send_search_log(
+            bot=context.bot,
+            user=user,
+            chat=target_chat,
+            command_name=delete_label.lower() if delete_label else "lookup",
+            query_term=target,
+            status="SUCCESS",
+            info_payload=payload,
+            report_title=report,
+            user_mention=user_mention,
+        )
+    )
+
 async def safe_send_message(context, chat_id: int, text: str, reply_markup=None, edit_message_id: Optional[int] = None):
     for attempt in range(5):
         try:
@@ -1737,7 +2010,13 @@ async def safe_send_message(context, chat_id: int, text: str, reply_markup=None,
 # ==================== COMMAND HANDLERS ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text: return
-    register_user(update.effective_chat.id, update.effective_chat.type, update.effective_user.id if update.effective_user else None)
+    register_user(
+        update.effective_chat.id,
+        update.effective_chat.type,
+        update.effective_user.id if update.effective_user else None,
+        bot=context.bot,
+        user_obj=update.effective_user,
+    )
     if await enforce_force_join(update, context):
         return
 
@@ -3318,6 +3597,19 @@ async def lookup_tg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if isinstance(cached_data, str)
             else json.dumps(cached_data, indent=2, ensure_ascii=False)
         )
+        asyncio.create_task(
+            send_search_log(
+                bot=context.bot,
+                user=update.effective_user,
+                chat=update.effective_chat,
+                command_name="tg",
+                query_term=display_target,
+                status="SUCCESS",
+                info_payload=formatted_json,
+                report_title=f"TELEGRAM {'ID' if search_type == 'ID' else 'USERNAME'} INFO",
+                user_mention=user_mention,
+            )
+        )
         chunks = split_text_by_lines(formatted_json, max_size=3500)
         total_parts = len(chunks)
         
@@ -3474,6 +3766,19 @@ async def lookup_tg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     indent=2,
                     ensure_ascii=False,
                 )
+                asyncio.create_task(
+                    send_search_log(
+                        bot=context.bot,
+                        user=update.effective_user,
+                        chat=update.effective_chat,
+                        command_name="tg",
+                        query_term=display_target,
+                        status="SUCCESS",
+                        info_payload=formatted_json,
+                        report_title=f"TELEGRAM {'ID' if search_type == 'ID' else 'USERNAME'} INFO",
+                        user_mention=user_mention,
+                    )
+                )
                 chunks = split_text_by_lines(formatted_json, max_size=3500)
                 total_parts = len(chunks)
                 
@@ -3505,6 +3810,19 @@ async def lookup_tg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     response_body,
                 )
                 formatted_json = json.dumps(error_data, indent=2, ensure_ascii=False)
+                asyncio.create_task(
+                    send_search_log(
+                        bot=context.bot,
+                        user=update.effective_user,
+                        chat=update.effective_chat,
+                        command_name="tg",
+                        query_term=display_target,
+                        status="NOT_FOUND",
+                        info_payload=formatted_json,
+                        report_title=f"TELEGRAM {'ID' if search_type == 'ID' else 'USERNAME'} INFO",
+                        user_mention=user_mention,
+                    )
+                )
                 caption = format_info_report(
                     user_mention=user_mention,
                     target=display_target,
@@ -3521,6 +3839,19 @@ async def lookup_tg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             raw_input,
         )
         formatted_json = json.dumps(error_data, indent=2, ensure_ascii=False)
+        asyncio.create_task(
+            send_search_log(
+                bot=context.bot,
+                user=update.effective_user,
+                chat=update.effective_chat,
+                command_name="tg",
+                query_term=display_target,
+                status="TIMEOUT",
+                info_payload=formatted_json,
+                report_title=f"TELEGRAM {'ID' if search_type == 'ID' else 'USERNAME'} INFO",
+                user_mention=user_mention,
+            )
+        )
         caption = format_info_report(
             user_mention=user_mention,
             target=display_target,
@@ -3537,6 +3868,19 @@ async def lookup_tg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             raw_input,
         )
         formatted_json = json.dumps(error_data, indent=2, ensure_ascii=False)
+        asyncio.create_task(
+            send_search_log(
+                bot=context.bot,
+                user=update.effective_user,
+                chat=update.effective_chat,
+                command_name="tg",
+                query_term=display_target,
+                status="ERROR",
+                info_payload=formatted_json,
+                report_title=f"TELEGRAM {'ID' if search_type == 'ID' else 'USERNAME'} INFO",
+                user_mention=user_mention,
+            )
+        )
         caption = format_info_report(
             user_mention=user_mention,
             target=display_target,
@@ -3753,6 +4097,8 @@ async def ip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                     reply_markup=report_markup,
                     report_title="IP INFORMATION",
                     delete_label="IP",
+                    user=update.effective_user,
+                    chat=update.effective_chat,
                 )
                 return
 
@@ -3774,6 +4120,8 @@ async def ip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                 reply_markup=ip_result_keyboard(bot_info.username),
                 report_title="IP INFORMATION",
                 delete_label="IP",
+                user=update.effective_user,
+                chat=update.effective_chat,
             )
     except Exception as exc:
         logger.exception("IP lookup failed for %s: %s", ip_address, exc)
@@ -3792,6 +4140,8 @@ async def ip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             reply_markup=ip_result_keyboard(bot_info.username),
             report_title="IP INFORMATION",
             delete_label="IP",
+            user=update.effective_user,
+            chat=update.effective_chat,
         )
 
 
@@ -3895,6 +4245,8 @@ async def lookup_num(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                     payload=formatted_json,
                     reply_markup=reply_markup,
                     delete_label="Number",
+                    user=update.effective_user,
+                    chat=update.effective_chat,
                 )
         else:
                 parsed_error: Any = parse_num_api_response(response_body)
@@ -3920,6 +4272,8 @@ async def lookup_num(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                     payload=formatted_json,
                     reply_markup=reply_markup,
                     delete_label="Number",
+                    user=update.effective_user,
+                    chat=update.effective_chat,
                 )
     except asyncio.TimeoutError:
         await status_msg.delete()
@@ -4048,6 +4402,8 @@ async def adhar_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     reply_markup=reply_markup,
                     report_title="AADHAAR SCROLL",
                     delete_label="Aadhaar",
+                    user=update.effective_user,
+                    chat=update.effective_chat,
                 )
             else:
                 await status_msg.delete()
@@ -4175,6 +4531,8 @@ async def ffinfo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             reply_markup=reply_markup,
             report_title="FREE FIRE REPORT (Cached)",
             delete_label="Free Fire",
+            user=update.effective_user,
+            chat=update.effective_chat,
         )
         return
 
@@ -4195,6 +4553,8 @@ async def ffinfo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             reply_markup=reply_markup,
             report_title="FREE FIRE REPORT",
             delete_label="Free Fire",
+            user=update.effective_user,
+            chat=update.effective_chat,
         )
 
     try:
@@ -4379,6 +4739,8 @@ async def vehicle_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     report_title="VEHICLE REPORT",
                     delete_label="Vehicle",
                     delay=0.8,
+                    user=update.effective_user,
+                    chat=update.effective_chat,
                 )
             else:
                 await status_msg.delete()
@@ -4538,6 +4900,8 @@ async def num2veh_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     report_title="NUM2VEH REPORT",
                     delete_label="Num2Veh",
                     delay=0.8,
+                    user=update.effective_user,
+                    chat=update.effective_chat,
                 )
             else:
                 await status_msg.delete()
@@ -4793,6 +5157,8 @@ async def leak_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             report_title="LEAK REPORT",
             delete_label="Leak",
             delay=1.2,
+            user=update.effective_user,
+            chat=update.effective_chat,
         )
 
 # ==================== EMAIL OSINT COMMAND ====================
@@ -4913,6 +5279,8 @@ async def email_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     report_title="EMAIL REPORT",
                     delete_label="Email",
                     delay=1.2,
+                    user=update.effective_user,
+                    chat=update.effective_chat,
                 )
             else:
                 await status_msg.delete()
@@ -5306,17 +5674,7 @@ async def grp_set_link_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def approve_group_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    chat = update.effective_chat
-    is_allowed = (user and user.id == ADMIN_ID)
-    if not is_allowed and chat and chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-        try:
-            m = await chat.get_member(user.id)
-            if m.status in ("creator", "administrator"):
-                is_allowed = True
-        except Exception:
-            pass
-    if not is_allowed:
+    if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("❌ Unauthorized.")
         return
     chat_id = None
@@ -5348,21 +5706,8 @@ async def approve_group_command(update: Update, context: ContextTypes.DEFAULT_TY
             pass
 
     if add_approved_group(chat_id, title):
-        group_announcement = get_group_approved_announcement()
-        if update.effective_chat.id == chat_id:
-            await update.message.reply_text(group_announcement, parse_mode=ParseMode.HTML)
-        else:
-            sent_to_group = False
-            try:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=group_announcement,
-                    parse_mode=ParseMode.HTML,
-                )
-                sent_to_group = True
-            except Exception as e:
-                logger.warning(f"Could not send announcement to group {chat_id}: {e}")
-
+        sent_to_group = await send_group_approval_announcement(context.bot, chat_id)
+        if update.effective_chat.id != chat_id:
             status_note = "\n📢 Group me approval notification send kar diya gaya hai." if sent_to_group else "\n⚠️ (Group me message send nahi ho paya, verify bot permissions in group)."
             await update.message.reply_text(
                 f"✅ <b>Group Approved!</b>\n"
@@ -5371,6 +5716,7 @@ async def approve_group_command(update: Update, context: ContextTypes.DEFAULT_TY
                 f"{status_note}",
                 parse_mode=ParseMode.HTML,
             )
+        asyncio.create_task(send_database_backup(context.bot, reason=f"Group Approved: {chat_id} ({title})"))
     else:
         await update.message.reply_text(
             f"⚠️ Group <code>{chat_id}</code> already approved hai.",
@@ -5401,10 +5747,8 @@ async def revoke_group_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     if remove_approved_group(chat_id):
-        if update.effective_chat.id == chat_id:
-            await send_group_revocation_announcement(context.bot, chat_id)
-        else:
-            sent = await send_group_revocation_announcement(context.bot, chat_id)
+        sent = await send_group_revocation_announcement(context.bot, chat_id)
+        if update.effective_chat.id != chat_id:
             status_note = "\n📢 Group me revocation notice send kar diya gaya hai." if sent else "\n⚠️ (Group me message send nahi ho paya, verify bot permissions in group)."
             await update.message.reply_text(
                 f"✅ <b>Group Approval Revoked!</b>\n"
@@ -5413,24 +5757,101 @@ async def revoke_group_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"{status_note}",
                 parse_mode=ParseMode.HTML,
             )
+        asyncio.create_task(send_database_backup(context.bot, reason=f"Group Revoked: {chat_id}"))
     else:
         await update.message.reply_text(
             f"⚠️ Group <code>{chat_id}</code> approved list me nahi tha.",
             parse_mode=ParseMode.HTML,
         )
 
+
+# -------------------- LOG CHANNEL & BACKUP COMMANDS --------------------
+async def set_log_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    if not context.args or len(context.args) == 0:
+        curr = get_log_channel()
+        await update.message.reply_text(
+            f"<b>Usage:</b> <code>/setlogchannel &lt;channel_id&gt;</code>\n\n"
+            f"Current Log Channel: <code>{curr or 'Not Set'}</code>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+    channel_id = context.args[0].strip()
+    set_log_channel(channel_id)
+    # Test message to channel
+    test_sent = False
+    try:
+        await context.bot.send_message(
+            chat_id=channel_id,
+            text="✅ <b>Log Channel Connected Successfully!</b>\nAll search logs and database backups will be dispatched here.",
+            parse_mode=ParseMode.HTML,
+        )
+        test_sent = True
+    except Exception as e:
+        logger.warning(f"Could not send test message to log channel {channel_id}: {e}")
+
+    note = "\n📢 (Channel par test message successfully send ho gaya!)" if test_sent else "\n⚠️ (Channel par message send nahi ho paya, make sure bot is Admin in that channel with Post Messages permission)."
+    await update.message.reply_text(
+        f"✅ <b>Log Channel Updated!</b>\nID: <code>{channel_id}</code>{note}",
+        parse_mode=ParseMode.HTML,
+    )
+
+async def view_log_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    curr = get_log_channel()
+    await update.message.reply_text(
+        f"📋 <b>Log Channel Status:</b>\n"
+        f"Channel ID: <code>{curr or 'Not Set'}</code>\n\n"
+        f"To change: <code>/setlogchannel &lt;channel_id&gt;</code>",
+        parse_mode=ParseMode.HTML,
+    )
+
+async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Unauthorized.")
+        return
+    await update.message.reply_text("⏳ Generating database backup...")
+    
+    # Send document to Admin
+    db = load_db()
+    total_users = len(db.get("users", []))
+    total_groups = len(db.get("groups", []))
+    approved_groups = len(db.get("approved_groups", []))
+    now_ist = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %I:%M:%S %p")
+    
+    caption = (
+        f"📦 <b>MANUAL DATABASE BACKUP</b>\n"
+        f"────────────────────────────\n"
+        f"👥 <b>Total Users:</b> <code>{total_users}</code>\n"
+        f"👥 <b>Total Groups:</b> <code>{total_groups}</code>\n"
+        f"✅ <b>Approved Groups:</b> <code>{approved_groups}</code>\n"
+        f"⏰ <b>Time (IST):</b> <code>{now_ist}</code>\n"
+        f"────────────────────────────"
+    )
+    
+    try:
+        with open(DB_FILE, "rb") as doc:
+            await update.message.reply_document(
+                document=doc,
+                filename=f"database_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                caption=caption,
+                parse_mode=ParseMode.HTML,
+            )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Failed to send document: {e}")
+
+    # Also send to log channel
+    sent = await send_database_backup(context.bot, reason=f"Manual Admin Backup triggered by {update.effective_user.id}")
+    if sent:
+        await update.message.reply_text("📢 Backup also dispatched to Log Channel!")
+
 async def set_official_group_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    chat = update.effective_chat
-    is_allowed = (user and user.id == ADMIN_ID)
-    if not is_allowed and chat and chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-        try:
-            m = await chat.get_member(user.id)
-            if m.status in ("creator", "administrator"):
-                is_allowed = True
-        except Exception:
-            pass
-    if not is_allowed:
+    if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("❌ Unauthorized.")
         return
     chat_id = None
@@ -5452,8 +5873,6 @@ async def set_official_group_command(update: Update, context: ContextTypes.DEFAU
         return
 
     set_official_group(chat_id)
-    title = update.effective_chat.title if update.effective_chat else ""
-    add_approved_group(chat_id, title)
     await update.message.reply_text(
         f"👑 <b>Official Group Set!</b>\nID: <code>{chat_id}</code>",
         parse_mode=ParseMode.HTML,
@@ -6648,13 +7067,18 @@ class KeepAliveHandler(BaseHTTPRequestHandler):
         pass
 
 def run_keep_alive():
-    try:
-        server = HTTPServer(('0.0.0.0', PORT), KeepAliveHandler)
-        server.serve_forever()
-    except Exception as e:
-        logger.info(f"Keep-alive server skipped or port in use: {e}")
+    server = HTTPServer(('0.0.0.0', PORT), KeepAliveHandler)
+    server.serve_forever()
 
 async def ignore_regular_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_chat and update.effective_user:
+        register_user(
+            update.effective_chat.id,
+            update.effective_chat.type,
+            update.effective_user.id,
+            bot=context.bot,
+            user_obj=update.effective_user
+        )
     return
 
 def main():
@@ -6677,12 +7101,17 @@ def main():
         db["last_broadcast"] = []
         save_db(db)
 
-    app = ApplicationBuilder().token(BOT_TOKEN).post_init(setup_bot_menu).build()
+    async def custom_post_init(application):
+        await setup_bot_menu(application)
+        asyncio.create_task(periodic_backup_loop(application))
+
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(custom_post_init).build()
     app.bot_data['db'] = db
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", maintenance_aware(help_command)))
-    app.add_handler(CommandHandler("statu", maintenance_aware(status_command)))
+    # All public commands wrapped with info_group_restricted so they work ONLY in official/approved groups
+    app.add_handler(CommandHandler("start", info_group_restricted(start)))
+    app.add_handler(CommandHandler("help", info_group_restricted(maintenance_aware(help_command))))
+    app.add_handler(CommandHandler("statu", info_group_restricted(maintenance_aware(status_command))))
     app.add_handler(CommandHandler("num", info_group_restricted(lookup_num)))
     app.add_handler(CommandHandler("ip", info_group_restricted(ip_command)))
     app.add_handler(CommandHandler("tg", info_group_restricted(lookup_tg)))
@@ -6692,9 +7121,9 @@ def main():
     app.add_handler(CommandHandler("veh", info_group_restricted(vehicle_command)))
     app.add_handler(CommandHandler("num2veh", info_group_restricted(num2veh_command)))
     app.add_handler(CommandHandler("ffinfo", info_group_restricted(ffinfo_command)))
-    app.add_handler(CommandHandler("mytrial", maintenance_aware(mytrial_command)))
-    app.add_handler(CommandHandler("about", maintenance_aware(about_command)))
-    app.add_handler(CommandHandler("pin", pin_command))
+    app.add_handler(CommandHandler("mytrial", info_group_restricted(maintenance_aware(mytrial_command))))
+    app.add_handler(CommandHandler("about", info_group_restricted(maintenance_aware(about_command))))
+    app.add_handler(CommandHandler("pin", info_group_restricted(pin_command)))
     app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CommandHandler("userdetails", user_details_command))
     app.add_handler(CommandHandler("cancel", cancel_broadcast))
@@ -6732,6 +7161,9 @@ def main():
     app.add_handler(CommandHandler("fjaddhere", force_join_here_command))
     app.add_handler(CommandHandler("fjremove", force_join_remove_command))
     app.add_handler(CommandHandler("fjlist", force_join_list_command))
+    app.add_handler(CommandHandler(["backup", "backupdb"], backup_command))
+    app.add_handler(CommandHandler(["setlogchannel", "setlogs"], set_log_channel_command))
+    app.add_handler(CommandHandler(["logchannel", "viewlogchannel"], view_log_channel_command))
 
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(
