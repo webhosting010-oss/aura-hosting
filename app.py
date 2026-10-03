@@ -386,7 +386,7 @@ def get_bot_identity(target_dir, workspace_root=None):
              (top_folder == 'bot' and any(x in dir_files for x in ['extractor.py', 'watcher.py', 'mail_service.py']))
     is_bmb = any(n == 'text' or 'text' in n or 'bomber' in n or 'bom' in n for n in names_to_check) or \
              any(x in dir_files for x in ['text.py', 'bom.py', 'bomber.py'])
-    is_sel = any('number_sell' in n or 'channel_key' in n or 'seller' in n for n in names_to_check)
+    is_sel = any('number_sell' in n or 'channel_key' in n or 'seller' in n or 'oromo' in n or 'promo' in n for n in names_to_check)
 
     return {
         'is_grp': is_grp,
