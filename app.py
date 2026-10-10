@@ -91,6 +91,9 @@ MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
 MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
 MAIL_FROM = os.environ.get("MAIL_FROM", "noreply@aurahost.com")
 
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
+RESEND_FROM = os.environ.get("RESEND_FROM", "").strip()
+
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "")
@@ -268,45 +271,75 @@ def send_otp_email(to_email, otp_code, subject=None, body=None):
             f"— The Aura Host Team"
         )
     
-    username = (MAIL_USERNAME or "").strip()
-    password = (MAIL_PASSWORD or "").strip()
-    from_addr = (MAIL_FROM or "").strip() or username
-
-    if not username or not password:
-        logger.warning(f"[EMAIL NOT CONFIGURED] OTP for {to_email} is {otp_code}")
-        return True, "Verification code generated."
+    resend_key = (os.environ.get("RESEND_API_KEY") or RESEND_API_KEY or "").strip()
+    resend_from = (os.environ.get("RESEND_FROM") or RESEND_FROM or "").strip() or "Aura Host <onboarding@resend.dev>"
 
     def _send_worker():
-        msg = MIMEText(body, 'plain', 'utf-8')
-        msg['Subject'] = subject
-        msg['From'] = f"Aura Host <{from_addr}>"
-        msg['To'] = to_email
+        # Priority 1: Resend HTTPS API (Port 443 - 100% bypasses Railway SMTP firewall blocks)
+        if resend_key:
+            try:
+                import urllib.request
+                import json
+                payload = json.dumps({
+                    "from": resend_from,
+                    "to": [to_email],
+                    "subject": subject,
+                    "text": body
+                }).encode('utf-8')
+                req = urllib.request.Request(
+                    "https://api.resend.com/emails",
+                    data=payload,
+                    headers={
+                        "Authorization": f"Bearer {resend_key}",
+                        "Content-Type": "application/json",
+                        "User-Agent": "AuraHost/1.0"
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    logger.info(f"OTP successfully delivered via Resend HTTPS API to {to_email}")
+                    return
+            except Exception as e_resend:
+                err_text = ""
+                if hasattr(e_resend, 'read'):
+                    try:
+                        err_text = e_resend.read().decode()
+                    except Exception:
+                        pass
+                logger.error(f"Resend HTTPS API delivery error for {to_email}: {e_resend} {err_text}")
 
-        # Protocol 1: Direct SSL on Port 465 (Fastest, universally open on cloud containers)
-        try:
-            ssl_ctx = ssl.create_default_context()
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl_ctx, timeout=8) as server:
-                server.login(username, password)
-                server.sendmail(from_addr, [to_email], msg.as_string())
-            logger.info(f"OTP successfully delivered via SSL 465 to {to_email}")
-            return
-        except Exception as e_ssl:
-            logger.warning(f"SSL 465 attempt failed for {to_email}: {e_ssl}, trying Port 587 STARTTLS...")
+        # Priority 2: Direct SMTP Fallback
+        username = (MAIL_USERNAME or "").strip()
+        password = (MAIL_PASSWORD or "").strip()
+        from_addr = (MAIL_FROM or "").strip() or username
+        if username and password:
+            msg = MIMEText(body, 'plain', 'utf-8')
+            msg['Subject'] = subject
+            msg['From'] = f"Aura Host <{from_addr}>"
+            msg['To'] = to_email
 
-        # Protocol 2: Port 587 STARTTLS fallback
-        try:
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=8) as server:
-                server.ehlo()
-                server.starttls()
-                server.ehlo()
-                server.login(username, password)
-                server.sendmail(from_addr, [to_email], msg.as_string())
-            logger.info(f"OTP successfully delivered via STARTTLS 587 to {to_email}")
-            return
-        except Exception as e_tls:
-            logger.error(f"Failed to deliver email to {to_email} via SMTP: {e_tls}")
+            try:
+                ssl_ctx = ssl.create_default_context()
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl_ctx, timeout=8) as server:
+                    server.login(username, password)
+                    server.sendmail(from_addr, [to_email], msg.as_string())
+                logger.info(f"OTP successfully delivered via SSL 465 to {to_email}")
+                return
+            except Exception as e_ssl:
+                logger.warning(f"SSL 465 attempt failed for {to_email}: {e_ssl}")
 
-    # Launch non-blocking background thread: Instant page load for the user!
+            try:
+                with smtplib.SMTP("smtp.gmail.com", 587, timeout=8) as server:
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
+                    server.login(username, password)
+                    server.sendmail(from_addr, [to_email], msg.as_string())
+                logger.info(f"OTP successfully delivered via STARTTLS 587 to {to_email}")
+                return
+            except Exception as e_tls:
+                logger.error(f"SMTP delivery failed for {to_email}: {e_tls}")
+
+    # Non-blocking async background thread for instant page response
     threading.Thread(target=_send_worker, daemon=True).start()
     return True, f"Verification code sent to {to_email}."
 
