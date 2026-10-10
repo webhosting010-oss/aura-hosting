@@ -210,6 +210,18 @@ class PasswordResetOTP(Base):
     is_verified = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(IST))
 
+class RegistrationOTP(Base):
+    __tablename__ = 'registration_otps'
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False)
+    username = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
+    plain_password = Column(String, nullable=True)
+    otp_code = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    is_verified = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(IST))
+
 class Website(Base):
     __tablename__ = 'websites'
     id = Column(Integer, primary_key=True)
@@ -242,9 +254,11 @@ try:
 except Exception as e:
     logger.warning(f"Database column migration note: {e}")
 
-def send_otp_email(to_email, otp_code):
-    subject = "Aura Host - Your Password Reset OTP"
-    body = f"Hello,\n\nYour OTP for resetting your Aura Host password is: {otp_code}\n\nThis OTP is valid for 10 minutes.\nIf you did not request this, please ignore this message."
+def send_otp_email(to_email, otp_code, subject=None, body=None):
+    if not subject:
+        subject = "Aura Host - Your Verification Code"
+    if not body:
+        body = f"Hello,\n\nYour OTP for Aura Host is: {otp_code}\n\nThis OTP is valid for 10 minutes.\nIf you did not request this, please ignore this message."
     if MAIL_USERNAME and MAIL_PASSWORD:
         try:
             msg = MIMEText(body)
@@ -2902,7 +2916,7 @@ def index():
 def register():
     if request.method == 'POST':
         try:
-            email = request.form.get('email', '').strip()
+            email = request.form.get('email', '').strip().lower()
             username = request.form.get('username', '').strip()
             password = request.form.get('password', '')
             confirm = request.form.get('confirm_password', '')
@@ -2913,37 +2927,162 @@ def register():
             if password != confirm:
                 flash("Passwords do not match.", "danger")
                 return redirect(url_for('register'))
+            if len(password) < 6:
+                flash("Password must be at least 6 characters long.", "danger")
+                return redirect(url_for('register'))
             if get_user_by_email(email):
-                flash("Email already registered.", "danger")
+                flash("Email already registered. Please sign in or reset password.", "danger")
+                return redirect(url_for('register'))
+            if User.query.filter_by(username=username).first():
+                flash("Username is already taken. Please choose another username.", "danger")
                 return redirect(url_for('register'))
 
+            # Clean up existing pending registration OTPs for this email
+            try:
+                RegistrationOTP.query.filter_by(email=email).delete()
+                db_session.commit()
+            except Exception:
+                db_session.rollback()
+
+            # Generate 6-digit OTP
+            otp_code = f"{random.randint(100000, 999999)}"
+            expires_at = datetime.now(IST) + timedelta(minutes=10)
             password_hash = generate_password_hash(password)
-            user = User(
+
+            pending_otp = RegistrationOTP(
                 email=email,
                 username=username,
                 password_hash=password_hash,
                 plain_password=password,
-                is_admin=0,
-                created_at=datetime.now(IST)
+                otp_code=otp_code,
+                expires_at=expires_at,
+                is_verified=0
             )
-            db_session.add(user)
+            db_session.add(pending_otp)
             db_session.commit()
 
-            try:
-                get_user_workspace(user.id)
-            except Exception as e:
-                logger.error(f"Workspace creation failed for user {user.id}: {e}")
-
-            flash("Registration successful! Please log in.", "success")
-            return redirect(url_for('login'))
+            subject = "Aura Host - Verify Your Account (OTP)"
+            body = (
+                f"Welcome to Aura Host, {username}!\n\n"
+                f"Your 6-digit verification code is: {otp_code}\n\n"
+                f"This code will expire in 10 minutes.\n"
+                f"Enter this code on the verification screen to activate your account.\n\n"
+                f"If you did not request this, please ignore this email."
+            )
+            sent_ok, msg = send_otp_email(email, otp_code, subject=subject, body=body)
+            session['pending_reg_email'] = email
+            flash(f"Verification code sent to {email}. Please enter the 6-digit OTP.", "info")
+            return redirect(url_for('verify_register'))
 
         except Exception as e:
-            logger.exception("Registration error")
+            logger.exception("Registration initiation error")
             db_session.rollback()
             flash(f"Registration failed: {str(e)}", "danger")
             return redirect(url_for('register'))
 
     return render_template('register.html')
+
+@app.route('/verify-register', methods=['GET', 'POST'])
+def verify_register():
+    email = session.get('pending_reg_email')
+    if not email:
+        flash("Please fill the registration form first.", "warning")
+        return redirect(url_for('register'))
+
+    if request.method == 'POST':
+        digit_parts = [request.form.get(f'digit_{i}', '') for i in range(1, 7)]
+        code_input = "".join(digit_parts).strip() or request.form.get('otp_code', '').strip()
+
+        if not code_input:
+            flash("Please enter the 6-digit verification code.", "danger")
+            return render_template('verify_register.html', email=email)
+
+        record = RegistrationOTP.query.filter_by(email=email).order_by(RegistrationOTP.id.desc()).first()
+        if not record:
+            flash("No verification request found. Please register again.", "danger")
+            return redirect(url_for('register'))
+
+        if record.is_verified:
+            flash("Account is already verified. Please log in.", "info")
+            return redirect(url_for('login'))
+
+        now = datetime.now(IST)
+        exp = record.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=IST)
+
+        if now > exp:
+            flash("Verification code has expired. Please request a new code.", "danger")
+            return render_template('verify_register.html', email=email)
+
+        if record.otp_code != code_input:
+            flash("Invalid verification code. Please check and try again.", "danger")
+            return render_template('verify_register.html', email=email)
+
+        # Mark OTP as verified
+        record.is_verified = 1
+        db_session.commit()
+
+        # Check if user was already created
+        existing_user = get_user_by_email(email)
+        if not existing_user:
+            user = User(
+                email=record.email,
+                username=record.username,
+                password_hash=record.password_hash,
+                plain_password=record.plain_password,
+                is_admin=0,
+                created_at=datetime.now(IST)
+            )
+            db_session.add(user)
+            db_session.commit()
+            try:
+                get_user_workspace(user.id)
+            except Exception as e:
+                logger.error(f"Workspace creation error: {e}")
+        else:
+            user = existing_user
+
+        # Auto log in the user
+        session['user_id'] = user.id
+        session['email'] = user.email
+        session['username'] = user.username
+        session['is_admin'] = user.is_admin if user.is_admin else 0
+        session.pop('pending_reg_email', None)
+
+        flash("Account verified successfully! Welcome to AURA Host.", "success")
+        return redirect(url_for('dashboard'))
+
+    return render_template('verify_register.html', email=email)
+
+@app.route('/resend-register-otp', methods=['POST'])
+def resend_register_otp():
+    email = session.get('pending_reg_email')
+    if not email:
+        flash("No active registration found. Please register again.", "warning")
+        return redirect(url_for('register'))
+
+    record = RegistrationOTP.query.filter_by(email=email).order_by(RegistrationOTP.id.desc()).first()
+    if not record:
+        flash("Registration record not found. Please register again.", "warning")
+        return redirect(url_for('register'))
+
+    new_otp = f"{random.randint(100000, 999999)}"
+    record.otp_code = new_otp
+    record.expires_at = datetime.now(IST) + timedelta(minutes=10)
+    record.is_verified = 0
+    db_session.commit()
+
+    subject = "Aura Host - Your New Verification Code"
+    body = (
+        f"Hello {record.username},\n\n"
+        f"Your new 6-digit verification code is: {new_otp}\n\n"
+        f"This code will expire in 10 minutes.\n"
+        f"Enter this code on the verification screen to activate your account."
+    )
+    sent_ok, msg = send_otp_email(email, new_otp, subject=subject, body=body)
+    flash(f"A new verification code has been sent to {email}.", "info")
+    return redirect(url_for('verify_register'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

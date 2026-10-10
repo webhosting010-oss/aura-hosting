@@ -1,104 +1,281 @@
 {% extends "base.html" %}
-{% block title %}AURA Hosting - Next-Gen Cloud VPS & Bot Hosting Platform{% endblock %}
+{% block title %}AURA Hosting - Next-Gen Cloud VPS & Autonomous Bot Platform{% endblock %}
 
 {% block content %}
-<div class="landing-hero">
-    <div class="hero-chip">
-        <span class="status-pulse"></span>
-        <i class="fa-solid fa-bolt"></i> High-Performance Cloud VPS & 24/7 Bot Hosting
-    </div>
-
-    <h1 class="hero-title">
-        Deploy Bots, Web Apps & Scripts with <span class="gradient-text">Zero Downtime</span>
-    </h1>
-
-    <p class="hero-subtitle">
-        Original cloud hosting platform built for developers. Free generated domains, live interactive terminal with pip package installer, persistent SQLite & JSON storage, and real-time process monitoring.
-    </p>
-
-    <div class="hero-cta-group">
-        <a href="{{ url_for('register') }}" class="btn-cyber-primary btn-hero">
-            <i class="fa-solid fa-rocket"></i>
-            <span>Start Free Hosting</span>
-        </a>
-        <a href="{{ url_for('login') }}" class="btn-cyber-secondary btn-hero">
-            <i class="fa-solid fa-terminal"></i>
-            <span>Open Server Console</span>
-        </a>
-    </div>
-
-    <!-- Live Cluster Status Banner -->
-    <div class="live-cluster-card pella-card">
-        <div class="cluster-col">
-            <span class="cluster-label"><i class="fa-solid fa-signal" style="color: #10b981;"></i> Global Cluster</span>
-            <span class="cluster-val">Online • 99.98% SLA</span>
+<div class="landing-container">
+    <!-- HERO SECTION -->
+    <section class="landing-hero-v2">
+        <div class="hero-chip-v2">
+            <span class="live-dot-pulse"></span>
+            <span class="chip-text"><i class="fa-solid fa-bolt"></i> High-Speed Cloud VPS & 24/7 Autonomous Bot Hosting</span>
         </div>
-        <div class="cluster-divider"></div>
-        <div class="cluster-col">
-            <span class="cluster-label"><i class="fa-solid fa-bolt" style="color: #06b6d4;"></i> Average Latency</span>
-            <span class="cluster-val">14ms Edge Response</span>
-        </div>
-        <div class="cluster-divider"></div>
-        <div class="cluster-col">
-            <span class="cluster-label"><i class="fa-solid fa-layer-group" style="color: #8b5cf6;"></i> Runtime Engines</span>
-            <span class="cluster-val">Python 3.11 / PHP 8.2</span>
-        </div>
-        <div class="cluster-divider"></div>
-        <div class="cluster-col">
-            <span class="cluster-label"><i class="fa-solid fa-globe" style="color: #10b981;"></i> Domains</span>
-            <span class="cluster-val">Free Auto-Generated URLs</span>
-        </div>
-    </div>
-</div>
 
-<!-- Features Section -->
-<div class="metrics-grid" style="margin-top: 4rem;">
-    <div class="feature-card pella-card">
-        <div class="metric-icon purple">
-            <i class="fa-solid fa-robot"></i>
-        </div>
-        <h3>24/7 Bot & Script Runner</h3>
-        <p>Run Telegram bots (Telethon, Pyrogram, Aiogram), Discord bots, automation scripts, and background workers with auto-restart on crash.</p>
-    </div>
+        <h1 class="hero-title-v2">
+            Deploy Telegram Bots & Web Apps <br>
+            <span class="gradient-text-aura">With 100% Zero Downtime</span>
+        </h1>
 
-    <div class="feature-card pella-card">
-        <div class="metric-icon cyan">
-            <i class="fa-solid fa-globe"></i>
-        </div>
-        <h3>Free Railway-Style Domains</h3>
-        <p>Deploy static websites, landing pages, and web apps with instant free generated domains (e.g. <code>/site/&lt;your-app&gt;/</code>) ready to share with the world.</p>
-    </div>
+        <p class="hero-subtitle-v2">
+            Built for developers and bot creators. Instant free public domains, live interactive browser terminal with <code>pip</code> package installer, persistent SQLite & JSON storage, and autonomous 24/7 process supervision with auto-restart.
+        </p>
 
-    <div class="feature-card pella-card">
-        <div class="metric-icon emerald">
-            <i class="fa-solid fa-terminal"></i>
+        <div class="hero-cta-group-v2">
+            <a href="{{ url_for('register') }}" class="btn-glow-primary">
+                <i class="fa-solid fa-rocket"></i>
+                <span>Get Started Free</span>
+                <i class="fa-solid fa-arrow-right cta-arrow"></i>
+            </a>
+            <a href="{{ url_for('login') }}" class="btn-glass-secondary">
+                <i class="fa-solid fa-terminal"></i>
+                <span>Open Server Console</span>
+            </a>
         </div>
-        <h3>Terminal & Package Installer</h3>
-        <p>Built-in interactive terminal: run <code>pip install</code> commands on demand or use 1-click popular bot package buttons with live console output.</p>
-    </div>
 
-    <div class="feature-card pella-card">
-        <div class="metric-icon blue">
-            <i class="fa-solid fa-database"></i>
+        <!-- LIVE TERMINAL HERO SHOWCASE -->
+        <div class="terminal-showcase-wrapper">
+            <div class="terminal-mockup-card">
+                <div class="terminal-mockup-header">
+                    <div class="terminal-window-buttons">
+                        <span class="win-btn close"></span>
+                        <span class="win-btn minimize"></span>
+                        <span class="win-btn zoom"></span>
+                    </div>
+                    <div class="terminal-title-pill">
+                        <i class="fa-solid fa-server"></i> root@aura-vps-node01: ~/workspace/telethon_bot
+                    </div>
+                    <div class="terminal-status-pill">
+                        <span class="mini-pulse-green"></span> ACTIVE
+                    </div>
+                </div>
+                <div class="terminal-mockup-body">
+                    <div class="term-line">
+                        <span class="term-prompt">aura-host:~$</span> <span class="term-cmd">pip install telethon pyrogram flask requests</span>
+                    </div>
+                    <div class="term-line term-dim">
+                        <span>[1/4] Requirement already satisfied: telethon (1.34.0)</span>
+                    </div>
+                    <div class="term-line term-dim">
+                        <span>[2/4] Successfully installed pyrogram-2.0.106 requests-2.31.0</span>
+                    </div>
+                    <div class="term-line" style="margin-top: 0.5rem;">
+                        <span class="term-prompt">aura-host:~$</span> <span class="term-cmd">python3 main.py --daemon</span>
+                    </div>
+                    <div class="term-line term-cyan">
+                        <i class="fa-solid fa-bolt"></i> [AURA SUPERVISOR] Initializing process runner PID: 4092
+                    </div>
+                    <div class="term-line term-emerald">
+                        <i class="fa-solid fa-circle-check"></i> [OK] Telegram Client connected to Telethon Data Center
+                    </div>
+                    <div class="term-line term-purple">
+                        <i class="fa-solid fa-database"></i> [OK] SQLite database initialized at /app/data/users.db
+                    </div>
+                    <div class="term-line term-gold">
+                        <i class="fa-solid fa-globe"></i> [PUBLIC DOMAIN] Live endpoint: <span class="term-underline">https://aura-hosting.up.railway.app/site/my-bot/</span>
+                    </div>
+                    <div class="term-line term-active-badge">
+                        <span class="live-tag">● RUNNING 24/7</span> CPU: 0.8% | RAM: 42.4MB / 512MB | Crash-Guard: Active
+                    </div>
+                </div>
+            </div>
         </div>
-        <h3>Persistent Storage & SQLite</h3>
-        <p>Auto-detects SQLite <code>.db</code> files and JSON configurations. Browse tables, run custom SQL queries, and edit JSON files visually from your browser.</p>
-    </div>
 
-    <div class="feature-card pella-card">
-        <div class="metric-icon amber">
-            <i class="fa-solid fa-folder-tree"></i>
-        </div>
-        <h3>Cloud File Manager</h3>
-        <p>Full web-based file explorer: create directories, upload ZIP archives with fast extraction, and edit code live with syntax highlighting.</p>
-    </div>
+        <!-- GLOBAL METRICS STRIP -->
+        <div class="metrics-strip-v2">
+            <div class="metric-item-v2">
+                <div class="metric-icon-box emerald-glow">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div class="metric-info-v2">
+                    <span class="metric-num-v2">99.98%</span>
+                    <span class="metric-label-v2">High-Availability Uptime</span>
+                </div>
+            </div>
 
-    <div class="feature-card pella-card">
-        <div class="metric-icon rose">
-            <i class="fa-solid fa-shield-halved"></i>
+            <div class="metric-divider-v2"></div>
+
+            <div class="metric-item-v2">
+                <div class="metric-icon-box cyan-glow">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div class="metric-info-v2">
+                    <span class="metric-num-v2">&lt; 15ms</span>
+                    <span class="metric-label-v2">Global Edge Latency</span>
+                </div>
+            </div>
+
+            <div class="metric-divider-v2"></div>
+
+            <div class="metric-item-v2">
+                <div class="metric-icon-box purple-glow">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </div>
+                <div class="metric-info-v2">
+                    <span class="metric-num-v2">24/7 Daemon</span>
+                    <span class="metric-label-v2">Crash-Guard Auto Restart</span>
+                </div>
+            </div>
+
+            <div class="metric-divider-v2"></div>
+
+            <div class="metric-item-v2">
+                <div class="metric-icon-box blue-glow">
+                    <i class="fa-solid fa-globe"></i>
+                </div>
+                <div class="metric-info-v2">
+                    <span class="metric-num-v2">Instant URLs</span>
+                    <span class="metric-label-v2">Free Auto-Generated Domains</span>
+                </div>
+            </div>
         </div>
-        <h3>OTP Auth & Security</h3>
-        <p>Secure account registration, password recovery via 6-digit email OTP verification, and strict sandbox directory isolation for every user project.</p>
-    </div>
+    </section>
+
+    <!-- FEATURES SHOWCASE -->
+    <section class="landing-features-v2">
+        <div class="section-title-header">
+            <span class="sub-badge-cyan">DEVELOPER FEATURES</span>
+            <h2 class="section-heading-v2">Engineered For Autonomous Power</h2>
+            <p class="section-subtext-v2">Everything you need to host, manage, and scale your scripts without server management headaches.</p>
+        </div>
+
+        <div class="features-grid-v2">
+            <!-- Card 1 -->
+            <div class="feature-card-v2 glass-card">
+                <div class="card-icon-wrap purple-glow">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="card-badge-tag">Telegram & Discord</div>
+                <h3 class="card-title-v2">24/7 Autonomous Bot Runner</h3>
+                <p class="card-desc-v2">
+                    Execute Telethon, Pyrogram, Aiogram, and Discord bots uninterrupted. If your process crashes or throws an exception, Aura Supervisor boots it back up in seconds.
+                </p>
+                <div class="feature-footer-tags">
+                    <span>Telethon</span>
+                    <span>Pyrogram</span>
+                    <span>Aiogram</span>
+                </div>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="feature-card-v2 glass-card">
+                <div class="card-icon-wrap cyan-glow">
+                    <i class="fa-solid fa-globe"></i>
+                </div>
+                <div class="card-badge-tag">Web Hosting</div>
+                <h3 class="card-title-v2">Railway-Style Instant Domains</h3>
+                <p class="card-desc-v2">
+                    Host static websites, landing pages, HTML5 projects, and web dashboards with automatic instant URLs (e.g. <code>/site/&lt;project&gt;/</code>) ready to share immediately.
+                </p>
+                <div class="feature-footer-tags">
+                    <span>HTML5</span>
+                    <span>CSS3 / JS</span>
+                    <span>Subdomains</span>
+                </div>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="feature-card-v2 glass-card">
+                <div class="card-icon-wrap emerald-glow">
+                    <i class="fa-solid fa-terminal"></i>
+                </div>
+                <div class="card-badge-tag">Terminal Console</div>
+                <h3 class="card-title-v2">Live Pip Package Manager</h3>
+                <p class="card-desc-v2">
+                    Built-in web console for running interactive commands, checking server logs in real-time, and 1-click installing popular Python dependencies with visual indicators.
+                </p>
+                <div class="feature-footer-tags">
+                    <span>pip install</span>
+                    <span>CLI Console</span>
+                    <span>Log Streams</span>
+                </div>
+            </div>
+
+            <!-- Card 4 -->
+            <div class="feature-card-v2 glass-card">
+                <div class="card-icon-wrap blue-glow">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+                <div class="card-badge-tag">Persistent Storage</div>
+                <h3 class="card-title-v2">SQLite & JSON Database Studio</h3>
+                <p class="card-desc-v2">
+                    Visual database manager inside your browser. Inspect tables, run customized SQL queries, view SQLite records, and edit JSON config files on the fly.
+                </p>
+                <div class="feature-footer-tags">
+                    <span>SQLite Viewer</span>
+                    <span>SQL Runner</span>
+                    <span>JSON Editor</span>
+                </div>
+            </div>
+
+            <!-- Card 5 -->
+            <div class="feature-card-v2 glass-card">
+                <div class="card-icon-wrap amber-glow">
+                    <i class="fa-solid fa-folder-tree"></i>
+                </div>
+                <div class="card-badge-tag">File Manager</div>
+                <h3 class="card-title-v2">Sandboxed Cloud Workspace</h3>
+                <p class="card-desc-v2">
+                    Full web file manager: create nested directories, upload ZIP archives with automatic extraction, edit code directly with syntax highlighting, and download files anytime.
+                </p>
+                <div class="feature-footer-tags">
+                    <span>ZIP Extract</span>
+                    <span>Code Editor</span>
+                    <span>Isolated Sandboxes</span>
+                </div>
+            </div>
+
+            <!-- Card 6 -->
+            <div class="feature-card-v2 glass-card">
+                <div class="card-icon-wrap rose-glow">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div class="card-badge-tag">Security</div>
+                <h3 class="card-title-v2">Email OTP Authentication</h3>
+                <p class="card-desc-v2">
+                    Protected registration and password recovery via 6-digit email OTP codes. Sandbox directory isolation prevents interference between accounts.
+                </p>
+                <div class="feature-footer-tags">
+                    <span>Email OTP</span>
+                    <span>6-Digit Verification</span>
+                    <span>Security Vault</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SUPPORTED RUNTIMES STRIP -->
+    <section class="runtimes-banner-section">
+        <div class="runtimes-header">
+            <span>READY-TO-USE RUNTIMES & FRAMEWORKS</span>
+        </div>
+        <div class="runtimes-pills-row">
+            <div class="runtime-pill"><i class="fa-brands fa-python"></i> Python 3.11</div>
+            <div class="runtime-pill"><i class="fa-brands fa-php"></i> PHP 8.2</div>
+            <div class="runtime-pill"><i class="fa-solid fa-paper-plane"></i> Telethon</div>
+            <div class="runtime-pill"><i class="fa-solid fa-bolt"></i> Pyrogram</div>
+            <div class="runtime-pill"><i class="fa-brands fa-discord"></i> Discord.py</div>
+            <div class="runtime-pill"><i class="fa-solid fa-server"></i> Flask & FastAPI</div>
+            <div class="runtime-pill"><i class="fa-solid fa-database"></i> SQLite 3</div>
+            <div class="runtime-pill"><i class="fa-solid fa-file-code"></i> JSON Stores</div>
+        </div>
+    </section>
+
+    <!-- BOTTOM CTA BANNER -->
+    <section class="bottom-cta-banner-v2">
+        <div class="cta-inner-card glass-card">
+            <div class="cta-badge-glow">
+                <i class="fa-solid fa-bolt"></i> READY IN UNDER 60 SECONDS
+            </div>
+            <h2 class="cta-heading-v2">Stop Paying For Complex Cloud Servers</h2>
+            <p class="cta-subtext-v2">Sign up with your email, verify your instant OTP, and deploy your bots and websites immediately.</p>
+            <div class="cta-buttons-v2">
+                <a href="{{ url_for('register') }}" class="btn-glow-primary btn-large">
+                    <i class="fa-solid fa-user-plus"></i> Create Account Free
+                </a>
+                <a href="{{ url_for('login') }}" class="btn-glass-secondary btn-large">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Console
+                </a>
+            </div>
+        </div>
+    </section>
 </div>
 {% endblock %}

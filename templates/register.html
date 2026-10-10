@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Register - AURA Hosting{% endblock %}
+{% block title %}Create Account - AURA Hosting{% endblock %}
 
 {% block content %}
 <div class="auth-wrapper">
@@ -8,16 +8,21 @@
             <div class="auth-brand-icon glow-cyan">
                 <i class="fa-solid fa-user-plus"></i>
             </div>
-            <h1 class="auth-title">Create Account</h1>
-            <p class="auth-desc">Get started with high-performance bot & web hosting</p>
+            <h1 class="auth-title">Create Free Account</h1>
+            <p class="auth-desc">Deploy your bots, scripts & web apps with zero setup friction</p>
         </div>
 
-        <form method="POST" action="{{ url_for('register') }}" class="cyber-form">
+        <div class="otp-notice-chip">
+            <i class="fa-solid fa-envelope-shield"></i>
+            <span>Instant 6-digit OTP email verification required</span>
+        </div>
+
+        <form method="POST" action="{{ url_for('register') }}" class="cyber-form" id="register-form">
             <div class="form-group">
                 <label class="form-label">Username</label>
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-user"></i>
-                    <input type="text" name="username" class="cyber-input" placeholder="johndoe" required autocomplete="username" autofocus>
+                    <input type="text" name="username" class="cyber-input" placeholder="Choose a username (e.g. dev_hero)" required autocomplete="username" autofocus>
                 </div>
             </div>
 
@@ -25,7 +30,7 @@
                 <label class="form-label">Email Address</label>
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-envelope"></i>
-                    <input type="email" name="email" class="cyber-input" placeholder="you@domain.com" required autocomplete="email">
+                    <input type="email" name="email" class="cyber-input" placeholder="you@gmail.com (OTP will be sent here)" required autocomplete="email">
                 </div>
             </div>
 
@@ -41,22 +46,28 @@
                 <div class="password-strength-bar">
                     <div class="strength-fill" id="reg-strength-fill"></div>
                 </div>
+                <span class="password-strength-hint" id="strength-hint">Enter a strong password</span>
             </div>
 
             <div class="form-group">
                 <label class="form-label">Confirm Password</label>
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-shield-halved"></i>
-                    <input type="password" name="confirm_password" id="reg-confirm" class="cyber-input" placeholder="Repeat your password" required autocomplete="new-password">
+                    <input type="password" name="confirm_password" id="reg-confirm" class="cyber-input" placeholder="Re-enter your password" required autocomplete="new-password">
                     <button type="button" class="btn-toggle-eye" onclick="togglePass('reg-confirm', this)">
                         <i class="fa-regular fa-eye"></i>
                     </button>
                 </div>
             </div>
 
-            <button type="submit" class="btn-cyber-primary btn-block">
-                <i class="fa-solid fa-user-check"></i>
-                <span>Create Cloud Account</span>
+            <div class="terms-pill">
+                <i class="fa-solid fa-check"></i>
+                <span>Free 24/7 background hosting & permanent workspace included</span>
+            </div>
+
+            <button type="submit" class="btn-cyber-primary btn-block" id="btn-submit-reg">
+                <i class="fa-solid fa-paper-plane"></i>
+                <span>Continue & Receive OTP</span>
             </button>
         </form>
 
@@ -85,6 +96,7 @@ function togglePass(id, btn) {
 document.getElementById('reg-pass').addEventListener('input', function(e) {
     const val = e.target.value;
     const fill = document.getElementById('reg-strength-fill');
+    const hint = document.getElementById('strength-hint');
     let strength = 0;
     if (val.length >= 6) strength += 30;
     if (val.length >= 10) strength += 30;
@@ -92,12 +104,18 @@ document.getElementById('reg-pass').addEventListener('input', function(e) {
     if (/[^A-Za-z0-9]/.test(val)) strength += 15;
 
     fill.style.width = strength + '%';
-    if (strength <= 30) {
+    if (strength === 0) {
+        hint.textContent = "Enter a password";
+        fill.style.background = 'transparent';
+    } else if (strength <= 30) {
         fill.style.background = '#ef4444';
+        hint.textContent = "Weak password (add numbers or uppercase)";
     } else if (strength <= 70) {
         fill.style.background = '#f59e0b';
+        hint.textContent = "Moderate password";
     } else {
         fill.style.background = '#10b981';
+        hint.textContent = "Strong password! Ready to deploy";
     }
 });
 </script>

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Verify Your Account - AURA Hosting{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card pella-card">
+        <div class="auth-header">
+            <div class="auth-brand-icon glow-cyan">
+                <i class="fa-solid fa-envelope-circle-check"></i>
+            </div>
+            <h1 class="auth-title">Verify Your Email</h1>
+            <p class="auth-desc">We've sent a 6-digit confirmation code to <br><strong class="highlight-email">{{ email }}</strong></p>
+        </div>
+
+        <div class="security-badge-banner">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>Protecting your cloud container sandbox with email verification</span>
+        </div>
+
+        <form method="POST" action="{{ url_for('verify_register') }}" class="cyber-form" id="reg-otp-form">
+            <div class="form-group" style="text-align: center;">
+                <label class="form-label" style="text-align: center; display: block; margin-bottom: 0.85rem;">
+                    Enter 6-Digit Verification Code
+                </label>
+                
+                <div class="otp-inputs-grid">
+                    <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric" class="otp-box" name="digit_1" id="reg-d1" autofocus required autocomplete="off">
+                    <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric" class="otp-box" name="digit_2" id="reg-d2" required autocomplete="off">
+                    <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric" class="otp-box" name="digit_3" id="reg-d3" required autocomplete="off">
+                    <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric" class="otp-box" name="digit_4" id="reg-d4" required autocomplete="off">
+                    <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric" class="otp-box" name="digit_5" id="reg-d5" required autocomplete="off">
+                    <input type="text" maxlength="1" pattern="[0-9]" inputmode="numeric" class="otp-box" name="digit_6" id="reg-d6" required autocomplete="off">
+                </div>
+                <input type="hidden" name="otp_code" id="reg_otp_hidden">
+            </div>
+
+            <div class="otp-timer-bar">
+                <span><i class="fa-regular fa-clock"></i> Code expires in: <strong id="reg-timer-text" style="color: var(--accent-cyan);">10:00</strong></span>
+            </div>
+
+            <button type="submit" class="btn-cyber-primary btn-block" id="btn-reg-verify">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>Verify & Activate Account</span>
+            </button>
+        </form>
+
+        <div style="margin-top: 1.5rem; text-align: center;">
+            <form method="POST" action="{{ url_for('resend_register_otp') }}" style="display: inline;">
+                <button type="submit" class="btn-text-link" id="reg-resend-btn">
+                    <i class="fa-solid fa-rotate-right"></i> Didn't receive code? Resend OTP
+                </button>
+            </form>
+        </div>
+
+        <div class="auth-footer-row" style="margin-top: 1.25rem;">
+            <a href="{{ url_for('register') }}" class="auth-link">
+                <i class="fa-solid fa-arrow-left"></i> Change Email / Re-register
+            </a>
+            <span class="auth-dot">•</span>
+            <a href="{{ url_for('login') }}" class="auth-link">Sign In</a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const boxes = document.querySelectorAll('#reg-otp-form .otp-box');
+    const hiddenInput = document.getElementById('reg_otp_hidden');
+    const form = document.getElementById('reg-otp-form');
+
+    function syncHidden() {
+        let code = '';
+        boxes.forEach(b => code += b.value);
+        if (hiddenInput) hiddenInput.value = code;
+    }
+
+    boxes.forEach((box, index) => {
+        box.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (val.length === 1 && index < boxes.length - 1) {
+                boxes[index + 1].focus();
+            }
+            syncHidden();
+            if (index === boxes.length - 1 && val.length === 1) {
+                syncHidden();
+                if (hiddenInput.value.length === 6) {
+                    form.submit();
+                }
+            }
+        });
+
+        box.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && !box.value && index > 0) {
+                boxes[index - 1].focus();
+            }
+        });
+
+        box.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text').trim();
+            if (/^\d{6}$/.test(text)) {
+                text.split('').forEach((digit, i) => {
+                    if (boxes[i]) boxes[i].value = digit;
+                });
+                syncHidden();
+                form.submit();
+            }
+        });
+    });
+
+    // 10-Minute Countdown Timer
+    let totalSeconds = 600;
+    const timerElem = document.getElementById('reg-timer-text');
+    const countdown = setInterval(function() {
+        totalSeconds--;
+        if (totalSeconds <= 0) {
+            clearInterval(countdown);
+            if (timerElem) timerElem.textContent = "Expired";
+            return;
+        }
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        if (timerElem) {
+            timerElem.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+    }, 1000);
+});
+</script>
+{% endblock %}
