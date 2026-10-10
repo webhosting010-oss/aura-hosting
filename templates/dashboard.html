@@ -1,80 +1,163 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - AURA Hosting{% endblock %}
+{% block title %}Server Dashboard - AURA Hosting{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <h1 class="page-title">Server Control Panel</h1>
-        <p class="page-subtitle">Monitor system metrics and manage active bot processes</p>
+<!-- Pella VPS Node Header -->
+<div class="vps-node-banner pella-card">
+    <div class="vps-node-details">
+        <div class="vps-node-icon glow-cyan">
+            <i class="fa-solid fa-server"></i>
+        </div>
+        <div>
+            <div class="vps-node-title-row">
+                <h1 class="vps-node-title">VPS-CLUSTER-01</h1>
+                <span class="vps-status-pill online">
+                    <span class="status-pulse"></span> 99.98% Active
+                </span>
+            </div>
+            <div class="vps-node-meta-row">
+                <span><i class="fa-solid fa-location-dot"></i> Asia (Mumbai Edge)</span>
+                <span><i class="fa-solid fa-network-wired"></i> node1.aurahost.live</span>
+                <span><i class="fa-solid fa-microchip"></i> Python 3.11 & PHP 8.2</span>
+            </div>
+        </div>
     </div>
-    <div style="display: flex; gap: 0.75rem;">
+
+    <div class="vps-header-actions">
         <a href="{{ url_for('deploy') }}" class="btn-cyber-primary">
             <i class="fa-solid fa-cloud-arrow-up"></i>
-            <span>Deploy New Bot</span>
+            <span>Deploy Bot</span>
+        </a>
+        <a href="{{ url_for('websites') }}" class="btn-cyber-secondary">
+            <i class="fa-solid fa-globe"></i>
+            <span>Web Hosting</span>
         </a>
         <a href="{{ url_for('workspace') }}" class="btn-cyber-secondary">
             <i class="fa-solid fa-folder-open"></i>
-            <span>File Manager</span>
+            <span>Files</span>
         </a>
     </div>
 </div>
 
-<!-- Metrics Cards Row -->
+<!-- Real-Time Metrics Row (Pella / cPanel Gauges) -->
 <div class="metrics-grid">
-    <div class="metric-card">
-        <div class="metric-icon purple">
-            <i class="fa-solid fa-microchip"></i>
+    <div class="metric-card pella-card">
+        <div class="metric-header">
+            <div class="metric-icon purple">
+                <i class="fa-solid fa-microchip"></i>
+            </div>
+            <span class="metric-trend"><i class="fa-solid fa-chart-line"></i> Live</span>
         </div>
         <div class="metric-data">
             <span class="metric-label">CPU Usage</span>
-            <span class="metric-value"><span id="cpu">0</span>%</span>
+            <div class="metric-value-row">
+                <span class="metric-value"><span id="cpu">{{ cpu|round(1) if cpu else 0 }}</span>%</span>
+            </div>
+            <div class="metric-progress-bg">
+                <div class="metric-progress-fill purple" id="cpu-bar" style="width: {{ cpu if cpu else 5 }}%;"></div>
+            </div>
         </div>
     </div>
 
-    <div class="metric-card">
-        <div class="metric-icon blue">
-            <i class="fa-solid fa-memory"></i>
+    <div class="metric-card pella-card">
+        <div class="metric-header">
+            <div class="metric-icon blue">
+                <i class="fa-solid fa-memory"></i>
+            </div>
+            <span class="metric-trend"><i class="fa-solid fa-bolt"></i> Dynamic</span>
         </div>
         <div class="metric-data">
             <span class="metric-label">RAM Usage</span>
-            <span class="metric-value"><span id="mem">0</span>%</span>
+            <div class="metric-value-row">
+                <span class="metric-value"><span id="mem">{{ mem|round(1) if mem else 0 }}</span>%</span>
+            </div>
+            <div class="metric-progress-bg">
+                <div class="metric-progress-fill blue" id="mem-bar" style="width: {{ mem if mem else 10 }}%;"></div>
+            </div>
         </div>
     </div>
 
-    <div class="metric-card">
-        <div class="metric-icon cyan">
-            <i class="fa-solid fa-server"></i>
+    <div class="metric-card pella-card">
+        <div class="metric-header">
+            <div class="metric-icon cyan">
+                <i class="fa-solid fa-robot"></i>
+            </div>
+            <span class="metric-badge-pill">Workers</span>
         </div>
         <div class="metric-data">
-            <span class="metric-label">Active Processes</span>
-            <span class="metric-value" id="running">0</span>
+            <span class="metric-label">Active Bots</span>
+            <div class="metric-value-row">
+                <span class="metric-value" id="running">{{ proc_count if proc_count else 0 }}</span>
+                <span class="metric-subtext">/ {{ files|length }} deployed</span>
+            </div>
+            <div class="metric-progress-bg">
+                <div class="metric-progress-fill cyan" style="width: 100%;"></div>
+            </div>
         </div>
     </div>
 
-    <div class="metric-card">
-        <div class="metric-icon emerald">
-            <i class="fa-solid fa-gauge"></i>
+    <div class="metric-card pella-card">
+        <div class="metric-header">
+            <div class="metric-icon emerald">
+                <i class="fa-solid fa-globe"></i>
+            </div>
+            <span class="metric-badge-pill">Railway Edge</span>
         </div>
         <div class="metric-data">
-            <span class="metric-label">UI Performance</span>
-            <span class="metric-value"><span id="fps-counter">60</span> <small style="font-size: 0.8rem;">fps</small></span>
+            <span class="metric-label">Hosted Websites</span>
+            <div class="metric-value-row">
+                <span class="metric-value">{{ websites|length if websites else 0 }}</span>
+                <span class="metric-subtext">Free Domains</span>
+            </div>
+            <div class="metric-progress-bg">
+                <div class="metric-progress-fill emerald" style="width: 100%;"></div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Active Processes Section -->
-<div style="margin-top: 2rem;">
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
-        <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff;">
-            <i class="fa-solid fa-terminal" style="color: var(--accent-purple); margin-right: 0.5rem;"></i>
-            Deployed Bots (.py / .php)
-        </h2>
+<!-- cPanel Tabbed Hub Navigation -->
+<div class="cpanel-nav-tabs">
+    <button type="button" class="cpanel-tab-btn active" data-tab="bots">
+        <i class="fa-solid fa-robot"></i>
+        <span>Bots & Workers</span>
+        <span class="tab-count">{{ files|length }}</span>
+    </button>
+    <button type="button" class="cpanel-tab-btn" data-tab="terminal" id="tab-terminal-btn">
+        <i class="fa-solid fa-terminal"></i>
+        <span>Terminal & Packages</span>
+        <span class="tab-badge-new">PRO</span>
+    </button>
+    <button type="button" class="cpanel-tab-btn" data-tab="websites">
+        <i class="fa-solid fa-globe"></i>
+        <span>Web Hosting</span>
+        <span class="tab-count">{{ websites|length if websites else 0 }}</span>
+    </button>
+    <button type="button" class="cpanel-tab-btn" data-tab="storage">
+        <i class="fa-solid fa-database"></i>
+        <span>Databases & Storage</span>
+    </button>
+</div>
+
+<!-- TAB 1: BOTS & WORKERS -->
+<div class="cpanel-tab-pane active" id="pane-bots">
+    <div class="section-title-bar">
+        <div>
+            <h2 class="section-title">
+                <i class="fa-solid fa-robot" style="color: var(--accent-cyan); margin-right: 0.5rem;"></i>
+                Deployed Bot Instances
+            </h2>
+            <p class="section-desc">Manage running Telegram, Discord, and automation bots (.py / .php)</p>
+        </div>
+        <a href="{{ url_for('deploy') }}" class="btn-cyber-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+            <i class="fa-solid fa-plus"></i> Deploy New
+        </a>
     </div>
 
     {% if files %}
     <div class="process-grid">
         {% for file in files %}
-        <div class="process-card" data-id="{{ file.id }}" data-name="{{ file.orig_name|lower }}">
+        <div class="process-card pella-card" data-id="{{ file.id }}" data-name="{{ file.orig_name|lower }}">
             <div class="process-header">
                 <div class="process-title-area">
                     <div class="type-icon {% if file.file_type == 'python' %}python{% else %}php{% endif %}">
@@ -86,53 +169,63 @@
                     </div>
                     <div>
                         <div class="process-filename">{{ file.orig_name }}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">{{ file.file_type }} engine</div>
+                        <div class="process-engine-tag">
+                            {{ file.file_type }} engine • PID: {{ file.pid if file.pid else 'None' }}
+                        </div>
                         {% if file.entry_file or file.custom_cmd %}
-                        <div style="font-size: 0.75rem; color: var(--accent-cyan); margin-top: 0.25rem;">
-                            {% if file.entry_file %}<span><i class="fa-solid fa-play" style="font-size: 0.65rem;"></i> {{ file.entry_file }}</span>{% endif %}
-                            {% if file.custom_cmd %}<span style="margin-left: 0.4rem; color: var(--text-muted);"><i class="fa-solid fa-terminal" style="font-size: 0.65rem;"></i> {{ file.custom_cmd }}</span>{% endif %}
+                        <div class="process-custom-meta">
+                            {% if file.entry_file %}<span><i class="fa-solid fa-play"></i> {{ file.entry_file }}</span>{% endif %}
+                            {% if file.custom_cmd %}<span style="color: var(--text-dim);"><i class="fa-solid fa-terminal"></i> {{ file.custom_cmd }}</span>{% endif %}
                         </div>
                         {% endif %}
                     </div>
                 </div>
 
                 <span class="status-badge {% if file.status == 'Running' %}running{% else %}stopped{% endif %}">
+                    {% if file.status == 'Running' %}<span class="status-pulse"></span>{% endif %}
                     {{ file.status }}
                 </span>
             </div>
 
             <div class="process-actions">
-                <button class="btn-cyber-primary btn-start" data-id="{{ file.id }}" {% if file.status == 'Running' %}disabled style="opacity: 0.5; cursor: not-allowed;"{% endif %} style="padding: 0.5rem 0.85rem; font-size: 0.82rem;">
+                <button class="btn-cyber-primary btn-start" data-id="{{ file.id }}" {% if file.status == 'Running' %}disabled style="opacity: 0.5; cursor: not-allowed;"{% endif %} title="Start Bot">
                     <i class="fa-solid fa-play"></i> Start
                 </button>
-                <button class="btn-cyber-secondary btn-stop" data-id="{{ file.id }}" {% if file.status != 'Running' %}disabled style="opacity: 0.5; cursor: not-allowed;"{% endif %} style="padding: 0.5rem 0.85rem; font-size: 0.82rem;">
+                <button class="btn-cyber-secondary btn-stop" data-id="{{ file.id }}" {% if file.status != 'Running' %}disabled style="opacity: 0.5; cursor: not-allowed;"{% endif %} title="Stop Bot">
                     <i class="fa-solid fa-stop"></i> Stop
                 </button>
-                <button class="btn-cyber-secondary btn-restart" data-id="{{ file.id }}" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;">
+                <button class="btn-cyber-secondary btn-restart" data-id="{{ file.id }}" title="Restart Bot">
                     <i class="fa-solid fa-rotate-right"></i> Restart
                 </button>
-                <button class="btn-cyber-secondary btn-config" data-id="{{ file.id }}" data-name="{{ file.orig_name }}" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;" title="Configure Entry File & Run Command">
+                <button class="btn-cyber-secondary btn-config" data-id="{{ file.id }}" data-name="{{ file.orig_name }}" title="Configure Entry File & Run Command">
                     <i class="fa-solid fa-gear"></i> Config
                 </button>
-                <a href="{{ url_for('edit_file', file_id=file.id) }}" class="btn-cyber-secondary" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;">
+                <a href="{{ url_for('edit_file', file_id=file.id) }}" class="btn-cyber-secondary" title="Direct Code Editor">
                     <i class="fa-solid fa-code"></i> Edit
                 </a>
-                <a href="{{ url_for('workspace', path=file.orig_name) }}" class="btn-cyber-secondary" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;" title="Open Bot Folder in File Manager">
+                <a href="{{ url_for('workspace', path=file.orig_name) }}" class="btn-cyber-secondary" title="Open Bot Files in Workspace">
                     <i class="fa-solid fa-folder-open"></i> Files
                 </a>
-                <button class="btn-cyber-secondary btn-logs" data-id="{{ file.id }}" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;">
-                    <i class="fa-solid fa-list-check"></i> Logs
+                <button class="btn-cyber-secondary btn-logs" data-id="{{ file.id }}" title="View Live Console Logs">
+                    <i class="fa-solid fa-terminal"></i> Logs
                 </button>
-                <button class="btn-cyber-danger btn-delete" data-id="{{ file.id }}" style="padding: 0.5rem 0.85rem; font-size: 0.82rem;">
-                    <i class="fa-solid fa-trash"></i>
+                <button class="btn-cyber-danger btn-delete" data-id="{{ file.id }}" title="Delete Instance">
+                    <i class="fa-solid fa-trash-can"></i>
                 </button>
             </div>
 
-            <div class="log-viewer" id="log-{{ file.id }}" style="display:none; margin-top: 1rem; background: #0d1117; border-radius: var(--radius-md); padding: 1rem; border: 1px solid var(--border-subtle);">
-                <pre style="color: #38bdf8; font-family: monospace; font-size: 0.82rem; white-space: pre-wrap; max-height: 250px; overflow-y: auto;"></pre>
-                <div class="install-module-section" id="install-module-{{ file.id }}" style="display:none; margin-top: 0.85rem;">
+            <!-- Inline Log Console -->
+            <div class="log-viewer" id="log-{{ file.id }}" style="display:none;">
+                <div class="log-viewer-header">
+                    <span><i class="fa-solid fa-terminal"></i> Process Output Console</span>
+                    <button type="button" class="btn-copy-url" onclick="$('#log-{{ file.id }}').slideUp()" title="Close Logs">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <pre class="log-pre"></pre>
+                <div class="install-module-section" id="install-module-{{ file.id }}" style="display:none; margin-top: 0.75rem;">
                     <button class="btn-cyber-primary btn-install-module" data-id="{{ file.id }}" style="width: 100%;">
-                        <i class="fa-solid fa-box-open"></i> Install Missing Module & Restart
+                        <i class="fa-solid fa-box-open"></i> Auto-Install Missing Module & Restart Bot
                     </button>
                 </div>
             </div>
@@ -140,50 +233,225 @@
         {% endfor %}
     </div>
     {% else %}
-    <div class="empty-state">
+    <div class="empty-state pella-card">
         <div class="empty-icon">
             <i class="fa-solid fa-robot"></i>
         </div>
-        <h3 class="empty-title">No Active Bots Found</h3>
-        <p class="empty-desc">You haven't deployed any Python or PHP bots yet. Click deploy to start hosting your bot 24/7.</p>
-        <a href="{{ url_for('deploy') }}" class="btn-cyber-primary" style="display: inline-flex; width: auto;">
-            <i class="fa-solid fa-cloud-arrow-up"></i> Deploy Your First Bot
+        <h2>No Bots Deployed Yet</h2>
+        <p>Upload a Python or PHP script, ZIP bot folder, and run your automated services 24/7 with zero configuration.</p>
+        <a href="{{ url_for('deploy') }}" class="btn-cyber-primary" style="display: inline-flex; width: auto; margin-top: 1rem;">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Deploy Bot Now
         </a>
     </div>
     {% endif %}
 </div>
 
+<!-- TAB 2: TERMINAL & MODULE / PACKAGE INSTALLER -->
+<div class="cpanel-tab-pane" id="pane-terminal">
+    <div class="section-title-bar">
+        <div>
+            <h2 class="section-title">
+                <i class="fa-solid fa-terminal" style="color: var(--accent-cyan); margin-right: 0.5rem;"></i>
+                Interactive Terminal & Package Installer
+            </h2>
+            <p class="section-desc">Install Python modules (pip), run shell & system commands, and inspect runtime output</p>
+        </div>
+    </div>
+
+    <!-- Quick Install Library Chips -->
+    <div class="pella-card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.75rem;">
+            <i class="fa-solid fa-bolt" style="color: var(--accent-amber);"></i> 1-Click Popular Module Installers:
+        </div>
+        <div class="quick-pkg-chips">
+            <button type="button" class="pkg-chip" onclick="quickInstall('pyrogram')"><i class="fa-brands fa-python"></i> pyrogram</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('telethon')"><i class="fa-brands fa-python"></i> telethon</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('aiogram')"><i class="fa-brands fa-python"></i> aiogram</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('python-telegram-bot')"><i class="fa-brands fa-python"></i> python-telegram-bot</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('requests')"><i class="fa-brands fa-python"></i> requests</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('aiohttp')"><i class="fa-brands fa-python"></i> aiohttp</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('flask')"><i class="fa-brands fa-python"></i> flask</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('discord.py')"><i class="fa-brands fa-python"></i> discord.py</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('Pillow')"><i class="fa-brands fa-python"></i> Pillow</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('pymongo')"><i class="fa-brands fa-python"></i> pymongo</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('psutil')"><i class="fa-brands fa-python"></i> psutil</button>
+            <button type="button" class="pkg-chip" onclick="quickInstall('pip list')"><i class="fa-solid fa-list"></i> pip list</button>
+        </div>
+    </div>
+
+    <!-- Terminal Screen Window -->
+    <div class="pella-terminal-window">
+        <div class="terminal-topbar">
+            <div class="terminal-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+            </div>
+            <div class="terminal-title">
+                <i class="fa-solid fa-terminal"></i> aura@vps-cluster:~# (Workspace Console)
+            </div>
+            <button type="button" class="btn-clear-term" onclick="clearTerminal()" title="Clear Screen">
+                <i class="fa-solid fa-eraser"></i> Clear
+            </button>
+        </div>
+
+        <div class="terminal-body" id="term-output">
+            <div class="term-line welcome">AURA Cloud Terminal v3.1 [Pella VPS Core]</div>
+            <div class="term-line text-muted">Type 'pip install &lt;package&gt;' or any command below and press Enter or Execute.</div>
+            <div class="term-line text-muted">----------------------------------------------------------------------</div>
+        </div>
+
+        <form class="terminal-input-bar" id="terminal-form" onsubmit="executeTerminalCommand(event)">
+            <span class="term-prompt">aura@vps:~$</span>
+            <input type="text" id="term-command-input" placeholder="e.g. pip install pyrogram, pip list, python -V..." autocomplete="off" spellcheck="false">
+            <button type="submit" class="btn-cyber-primary" id="btn-term-run" style="padding: 0.6rem 1.25rem;">
+                <i class="fa-solid fa-play"></i> <span>Run</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- TAB 3: WEB HOSTING & FREE DOMAINS -->
+<div class="cpanel-tab-pane" id="pane-websites">
+    <div class="section-title-bar">
+        <div>
+            <h2 class="section-title">
+                <i class="fa-solid fa-globe" style="color: var(--accent-cyan); margin-right: 0.5rem;"></i>
+                Railway-Style Web Hosting & Free Domains
+            </h2>
+            <p class="section-desc">Host static websites, single-page web apps, or APIs with free generated cloud domains</p>
+        </div>
+        <a href="{{ url_for('websites') }}" class="btn-cyber-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+            <i class="fa-solid fa-plus"></i> Deploy Web Project
+        </a>
+    </div>
+
+    {% if websites %}
+    <div class="sites-grid">
+        {% for site in websites %}
+        <div class="site-card pella-card">
+            <div class="site-card-header">
+                <div class="site-avatar">
+                    <i class="fa-solid fa-globe"></i>
+                </div>
+                <div class="site-info">
+                    <h3 class="site-title">{{ site.name }}</h3>
+                    <div class="site-slug-badge">
+                        <i class="fa-solid fa-link"></i> /site/{{ site.slug }}/
+                    </div>
+                </div>
+                <span class="status-badge running">
+                    <span class="status-pulse"></span> {{ site.status }}
+                </span>
+            </div>
+
+            <div class="site-url-box">
+                <span class="url-text">{{ request.host_url.rstrip('/') }}/site/{{ site.slug }}/</span>
+                <button class="btn-copy-url" onclick="copySiteUrl('{{ request.host_url.rstrip('/') }}/site/{{ site.slug }}/', this)" title="Copy Domain URL">
+                    <i class="fa-regular fa-copy"></i>
+                </button>
+            </div>
+
+            <div class="site-card-actions">
+                <a href="/site/{{ site.slug }}/" target="_blank" class="btn-cyber-primary" style="padding: 0.55rem 1rem; font-size: 0.85rem; flex: 1; text-align: center;">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Visit Site
+                </a>
+                <a href="{{ url_for('workspace', path=site.folder_path.split('workspace/' ~ session['user_id'] ~ '/')[-1] if 'workspace/' in site.folder_path else '') }}" class="btn-cyber-secondary" style="padding: 0.55rem 0.85rem; font-size: 0.85rem;" title="Edit Website Files">
+                    <i class="fa-solid fa-code"></i> Edit
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state pella-card">
+        <div class="empty-icon">
+            <i class="fa-solid fa-globe"></i>
+        </div>
+        <h2>No Websites Hosted Yet</h2>
+        <p>Deploy your HTML/JS sites or landing pages with a free instant URL like Railway / Vercel.</p>
+        <a href="{{ url_for('websites') }}" class="btn-cyber-primary" style="display: inline-flex; width: auto; margin-top: 1rem;">
+            <i class="fa-solid fa-rocket"></i> Launch Free Website
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- TAB 4: DATABASES & STORAGE -->
+<div class="cpanel-tab-pane" id="pane-storage">
+    <div class="section-title-bar">
+        <div>
+            <h2 class="section-title">
+                <i class="fa-solid fa-database" style="color: var(--accent-cyan); margin-right: 0.5rem;"></i>
+                Persistent Storage & Database Tools
+            </h2>
+            <p class="section-desc">Manage SQLite database tables, execute SQL queries, and edit JSON configurations</p>
+        </div>
+    </div>
+
+    <div class="metrics-grid">
+        <div class="cyber-card pella-card">
+            <div class="metric-icon emerald" style="margin-bottom: 1rem;">
+                <i class="fa-solid fa-database"></i>
+            </div>
+            <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem;">SQLite Databases</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">Auto-detected .db & .sqlite files created by your bots. Browse tables and run custom SQL queries.</p>
+            <a href="{{ url_for('my_databases') }}" class="btn-cyber-primary" style="display: inline-flex; width: auto; font-size: 0.85rem;">
+                <i class="fa-solid fa-table"></i> Open Database Manager
+            </a>
+        </div>
+
+        <div class="cyber-card pella-card">
+            <div class="metric-icon cyan" style="margin-bottom: 1rem;">
+                <i class="fa-solid fa-file-code"></i>
+            </div>
+            <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem;">JSON Storage</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">Bot settings, tokens, config files, and JSON databases. Edit visually with schema validation.</p>
+            <a href="{{ url_for('my_json_files') }}" class="btn-cyber-secondary" style="display: inline-flex; width: auto; font-size: 0.85rem;">
+                <i class="fa-solid fa-pen-to-square"></i> Open JSON Storage
+            </a>
+        </div>
+
+        <div class="cyber-card pella-card">
+            <div class="metric-icon purple" style="margin-bottom: 1rem;">
+                <i class="fa-solid fa-folder-tree"></i>
+            </div>
+            <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem;">File Manager Workspace</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">Browse project directories, upload files, unzip archives, create new files and folders.</p>
+            <a href="{{ url_for('workspace') }}" class="btn-cyber-secondary" style="display: inline-flex; width: auto; font-size: 0.85rem;">
+                <i class="fa-solid fa-folder-open"></i> Open File Manager
+            </a>
+        </div>
+    </div>
+</div>
+
 <!-- Bot Configuration Modal -->
 <div id="bot-config-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; align-items: center; justify-content: center;">
-    <div class="cyber-card" style="width: 100%; max-width: 500px; margin: 1rem; border: 1px solid var(--accent-cyan); box-shadow: 0 0 30px rgba(0, 240, 255, 0.25);">
+    <div class="modal-box pella-card" style="width: 100%; max-width: 500px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
             <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin: 0;">
                 <i class="fa-solid fa-gear" style="color: var(--accent-cyan);"></i> Bot Config: <span id="config-bot-name" style="color: var(--accent-cyan);"></span>
             </h3>
-            <button type="button" onclick="closeBotConfigModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+            <button type="button" onclick="closeBotConfigModal()" class="modal-close">&times;</button>
         </div>
 
-        <form id="bot-config-form" onsubmit="saveBotConfig(event)">
+        <form id="bot-config-form" onsubmit="saveBotConfig(event)" class="cyber-form">
             <input type="hidden" id="config-file-id" value="">
 
-            <div style="margin-bottom: 1.25rem;">
-                <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-                    Main Entry File
-                </label>
-                <input type="text" id="config-entry-file" placeholder="e.g. main.py / bot.py / index.php" class="cyber-input no-icon" style="width: 100%; font-size: 0.9rem;">
+            <div class="form-group">
+                <label class="form-label">Main Entry File</label>
+                <input type="text" id="config-entry-file" placeholder="e.g. main.py / bot.py / index.php" class="cyber-input no-icon">
                 <div id="candidate-files-wrapper" style="margin-top: 0.5rem; display: none;">
                     <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Detected runnable files (click to select):</span>
                     <div id="candidate-files-list" style="display: flex; flex-wrap: wrap; gap: 0.35rem;"></div>
                 </div>
             </div>
 
-            <div style="margin-bottom: 1.25rem;">
-                <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-                    Custom Run Command
-                </label>
-                <input type="text" id="config-custom-cmd" placeholder="e.g. python bot.py (leave empty for default)" class="cyber-input no-icon" style="width: 100%; font-size: 0.9rem;">
+            <div class="form-group">
+                <label class="form-label">Custom Run Command</label>
+                <input type="text" id="config-custom-cmd" placeholder="e.g. python bot.py (leave empty for default)" class="cyber-input no-icon">
                 <small style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-top: 0.35rem;">
-                    Override command (e.g. <code>python -m mybot</code> or <code>php bot.php</code>). Leave empty for default.
+                    Override execution command (e.g. <code>python -m mybot</code>). Leave empty for default.
                 </small>
             </div>
 
@@ -205,6 +473,101 @@
 </div>
 
 <script>
+    // Tab Switching
+    document.querySelectorAll('.cpanel-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabName = btn.dataset.tab;
+            document.querySelectorAll('.cpanel-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.cpanel-tab-pane').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            const targetPane = document.getElementById('pane-' + tabName);
+            if (targetPane) targetPane.classList.add('active');
+        });
+    });
+
+    // Check hash URL for direct tab navigation
+    if (window.location.hash === '#terminal-section' || window.location.hash === '#terminal') {
+        const tBtn = document.getElementById('tab-terminal-btn');
+        if (tBtn) tBtn.click();
+    }
+
+    // Terminal Command Execution
+    function executeTerminalCommand(e) {
+        if (e) e.preventDefault();
+        const input = document.getElementById('term-command-input');
+        const cmd = input.value.trim();
+        if (!cmd) return;
+
+        const termBody = document.getElementById('term-output');
+        const runBtn = document.getElementById('btn-term-run');
+
+        // Append user prompt
+        const userLine = document.createElement('div');
+        userLine.className = 'term-line user-cmd';
+        userLine.innerHTML = `<span class="term-prompt">aura@vps:~$</span> ${escapeHtml(cmd)}`;
+        termBody.appendChild(userLine);
+        termBody.scrollTop = termBody.scrollHeight;
+
+        input.value = '';
+        runBtn.disabled = true;
+        runBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running...';
+
+        fetch('/api/terminal/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: cmd })
+        })
+        .then(res => res.json())
+        .then(data => {
+            runBtn.disabled = false;
+            runBtn.innerHTML = '<i class="fa-solid fa-play"></i> <span>Run</span>';
+
+            const outputLine = document.createElement('pre');
+            outputLine.className = 'term-output-block ' + (data.success ? 'success' : 'error');
+            outputLine.textContent = data.output || '(No output returned)';
+            termBody.appendChild(outputLine);
+            termBody.scrollTop = termBody.scrollHeight;
+        })
+        .catch(err => {
+            runBtn.disabled = false;
+            runBtn.innerHTML = '<i class="fa-solid fa-play"></i> <span>Run</span>';
+
+            const errLine = document.createElement('div');
+            errLine.className = 'term-line error';
+            errLine.textContent = 'Network or server error: ' + err;
+            termBody.appendChild(errLine);
+            termBody.scrollTop = termBody.scrollHeight;
+        });
+    }
+
+    function quickInstall(pkgName) {
+        const input = document.getElementById('term-command-input');
+        if (pkgName.startsWith('pip ')) {
+            input.value = pkgName;
+        } else {
+            input.value = 'pip install ' + pkgName;
+        }
+        executeTerminalCommand();
+    }
+
+    function clearTerminal() {
+        const termBody = document.getElementById('term-output');
+        termBody.innerHTML = '<div class="term-line welcome">Terminal screen cleared. Ready for new commands.</div>';
+    }
+
+    function copySiteUrl(url, btn) {
+        navigator.clipboard.writeText(url).then(() => {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i>';
+            setTimeout(() => btn.innerHTML = orig, 1800);
+        });
+    }
+
+    function escapeHtml(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Modal Config Functions
     function openBotConfigModal(fileId, botName) {
         document.getElementById('config-file-id').value = fileId;
         document.getElementById('config-bot-name').textContent = botName || ('Bot #' + fileId);

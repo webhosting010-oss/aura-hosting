@@ -33,13 +33,17 @@ import aiosqlite
 
 _single_instance_socket = None
 
-def ensure_single_instance(port: int = 49512):
+def ensure_single_instance(port: int = None):
     global _single_instance_socket
+    if port is None:
+        import zlib, os
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+        port = 40000 + (zlib.crc32(curr_dir.encode()) % 10000)
     _single_instance_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         _single_instance_socket.bind(('127.0.0.1', port))
     except OSError:
-        logging.getLogger(__name__).warning(f"Another instance of bot.py is already running on port {port}! Exiting cleanly.")
+        logging.getLogger(__name__).warning(f"Another instance in this folder is already running on port {port}! Exiting cleanly.")
         sys.exit(0)
 from config import (
     BOT_TOKEN,

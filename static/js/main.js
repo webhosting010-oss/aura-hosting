@@ -86,9 +86,13 @@ $(document).ready(function() {
         if ($('#cpu').length === 0) return;
         $.get('/api/system', function(data) {
             if (data) {
-                $('#cpu').text(data.cpu.toFixed(1));
-                $('#mem').text(data.memory.toFixed(1));
+                const cpuVal = data.cpu.toFixed(1);
+                const memVal = data.memory.toFixed(1);
+                $('#cpu').text(cpuVal);
+                $('#mem').text(memVal);
                 $('#running').text(data.running);
+                if ($('#cpu-bar').length) $('#cpu-bar').css('width', Math.min(Math.max(data.cpu, 4), 100) + '%');
+                if ($('#mem-bar').length) $('#mem-bar').css('width', Math.min(Math.max(data.memory, 8), 100) + '%');
             }
         }).fail(function() { console.error('Stats fetch failed'); });
     }

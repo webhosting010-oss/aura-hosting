@@ -172,6 +172,7 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     plain_password = Column(String, nullable=True)
     files = relationship("File", back_populates="user")
+    websites = relationship("Website", back_populates="user", cascade="all, delete-orphan")
 
 class File(Base):
     __tablename__ = 'files'
@@ -208,6 +209,17 @@ class PasswordResetOTP(Base):
     expires_at = Column(DateTime, nullable=False)
     is_verified = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(IST))
+
+class Website(Base):
+    __tablename__ = 'websites'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    name = Column(String, nullable=False)
+    slug = Column(String, unique=True, nullable=False)
+    folder_path = Column(String, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(IST))
+    status = Column(String, default='Active')
+    user = relationship("User", back_populates="websites")
 
 Base.metadata.create_all(bind=engine)
 
@@ -2953,11 +2965,176 @@ def login():
             flash("Invalid email or password.", "danger")
     return render_template('login.html')
 
+# -----------------------------------------------------------------------------
+# Password Reset / OTP Routes
+# -----------------------------------------------------------------------------
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        if not email:
+            flash("Please enter your registered email address.", "danger")
+            return render_template('forgot_password.html')
+        
+        user = get_user_by_email(email)
+        if not user:
+            flash("No account found with this email address.", "danger")
+            return render_template('forgot_password.html')
+        
+        # Generate 6-digit OTP
+        otp_code = f"{random.randint(100000, 999999)}"
+        expires_at = datetime.now(IST) + timedelta(minutes=10)
+        
+        # Clean up existing OTPs for this email
+        try:
+            PasswordResetOTP.query.filter_by(email=email).delete()
+            db_session.commit()
+        except Exception:
+            db_session.rollback()
+        
+        new_otp = PasswordResetOTP(
+            email=email,
+            otp_code=otp_code,
+            expires_at=expires_at,
+            is_verified=0
+        )
+        db_session.add(new_otp)
+        db_session.commit()
+        
+        sent_ok, msg = send_otp_email(email, otp_code)
+        session['reset_email'] = email
+        flash(msg, "info")
+        return redirect(url_for('verify_otp'))
+
+    return render_template('forgot_password.html')
+
+@app.route('/verify-otp', methods=['GET', 'POST'])
+def verify_otp():
+    email = session.get('reset_email')
+    if not email:
+        flash("Please enter your email first.", "warning")
+        return redirect(url_for('forgot_password'))
+    
+    if request.method == 'POST':
+        digit_parts = [request.form.get(f'digit_{i}', '') for i in range(1, 7)]
+        code_input = "".join(digit_parts).strip() or request.form.get('otp_code', '').strip()
+        
+        if not code_input:
+            flash("Please enter the 6-digit verification code.", "danger")
+            return render_template('verify_otp.html', email=email)
+        
+        record = PasswordResetOTP.query.filter_by(email=email).order_by(PasswordResetOTP.id.desc()).first()
+        if not record:
+            flash("No OTP request found. Please request a new code.", "danger")
+            return redirect(url_for('forgot_password'))
+        
+        if record.is_verified:
+            session['otp_verified'] = True
+            return redirect(url_for('reset_password'))
+        
+        now = datetime.now(IST)
+        exp = record.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=IST)
+        
+        if now > exp:
+            flash("This OTP has expired. Please request a new code.", "danger")
+            return render_template('verify_otp.html', email=email)
+        
+        if record.otp_code != code_input:
+            flash("Invalid OTP code. Please check and try again.", "danger")
+            return render_template('verify_otp.html', email=email)
+        
+        record.is_verified = 1
+        db_session.commit()
+        session['otp_verified'] = True
+        flash("OTP verified successfully! Now set your new password.", "success")
+        return redirect(url_for('reset_password'))
+    
+    return render_template('verify_otp.html', email=email)
+
+@app.route('/resend-otp', methods=['POST'])
+def resend_otp():
+    email = session.get('reset_email')
+    if not email:
+        flash("Session expired. Please request password reset again.", "warning")
+        return redirect(url_for('forgot_password'))
+    
+    otp_code = f"{random.randint(100000, 999999)}"
+    expires_at = datetime.now(IST) + timedelta(minutes=10)
+    
+    try:
+        PasswordResetOTP.query.filter_by(email=email).delete()
+        db_session.commit()
+    except Exception:
+        db_session.rollback()
+
+    new_otp = PasswordResetOTP(
+        email=email,
+        otp_code=otp_code,
+        expires_at=expires_at,
+        is_verified=0
+    )
+    db_session.add(new_otp)
+    db_session.commit()
+    
+    sent_ok, msg = send_otp_email(email, otp_code)
+    flash(f"New OTP code sent! {msg}", "info")
+    return redirect(url_for('verify_otp'))
+
+@app.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    email = session.get('reset_email')
+    if not email or not session.get('otp_verified'):
+        flash("Please verify your OTP code first.", "warning")
+        return redirect(url_for('forgot_password'))
+    
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+        
+        if not password or len(password) < 6:
+            flash("Password must be at least 6 characters long.", "danger")
+            return render_template('reset_password.html', email=email)
+        
+        if password != confirm:
+            flash("Passwords do not match.", "danger")
+            return render_template('reset_password.html', email=email)
+        
+        user = get_user_by_email(email)
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for('login'))
+        
+        user.password_hash = generate_password_hash(password)
+        user.plain_password = password
+        try:
+            PasswordResetOTP.query.filter_by(email=email).delete()
+            db_session.commit()
+        except Exception:
+            db_session.rollback()
+        
+        session.pop('reset_email', None)
+        session.pop('otp_verified', None)
+        flash("Your password has been reset successfully! You can now log in.", "success")
+        return redirect(url_for('login'))
+    
+    return render_template('reset_password.html', email=email)
+
 @app.route('/logout')
 def logout():
     session.clear()
     flash("Logged out.", "info")
     return redirect(url_for('index'))
+
+# Helper for unique Railway-style slug
+def generate_railway_slug():
+    adjectives = ["neon", "hyper", "cyber", "apex", "swift", "nova", "pulse", "quantum", "zenith", "vortex", "rapid", "cloud"]
+    nouns = ["host", "cloud", "node", "core", "spark", "orbit", "flow", "nexus", "edge", "mesh", "space", "stack"]
+    slug = f"{random.choice(adjectives)}-{random.choice(nouns)}-{random.randint(100, 999)}"
+    while Website.query.filter_by(slug=slug).first():
+        slug = f"{random.choice(adjectives)}-{random.choice(nouns)}-{random.randint(100, 999)}"
+    return slug
 
 @app.route('/dashboard')
 @login_required
@@ -2966,7 +3143,212 @@ def dashboard():
     all_files = list_user_files(user_id)
     files = [f for f in all_files if f.file_type in ['python', 'php']]
     cpu, mem, proc_count = get_system_load()
-    return render_template('dashboard.html', files=files, cpu=cpu, mem=mem, proc_count=proc_count)
+    user_sites = Website.query.filter_by(user_id=user_id).order_by(Website.id.desc()).all()
+    workspace = get_user_workspace(user_id)
+    folders = []
+    if os.path.isdir(workspace):
+        for f in os.listdir(workspace):
+            if os.path.isdir(os.path.join(workspace, f)):
+                folders.append(f)
+    return render_template('dashboard.html', files=files, cpu=cpu, mem=mem, proc_count=proc_count, websites=user_sites, folders=folders)
+
+# -----------------------------------------------------------------------------
+# Website Hosting with Free Railway-style Subdomains
+# -----------------------------------------------------------------------------
+@app.route('/websites')
+@login_required
+def websites():
+    user_id = session['user_id']
+    user_sites = Website.query.filter_by(user_id=user_id).order_by(Website.id.desc()).all()
+    workspace = get_user_workspace(user_id)
+    folders = []
+    if os.path.isdir(workspace):
+        for f in os.listdir(workspace):
+            if os.path.isdir(os.path.join(workspace, f)):
+                folders.append(f)
+    return render_template('websites.html', websites=user_sites, folders=folders)
+
+@app.route('/websites/deploy', methods=['POST'])
+@login_required
+def websites_deploy():
+    user_id = session['user_id']
+    site_name = request.form.get('site_name', '').strip() or 'My Web Project'
+    folder_choice = request.form.get('folder_choice', '').strip()
+    custom_slug = request.form.get('custom_slug', '').strip().lower()
+    
+    workspace = get_user_workspace(user_id)
+    slug = ""
+    if custom_slug:
+        clean_slug = re.sub(r'[^a-z0-9\-]', '', custom_slug).strip('-')
+        if clean_slug and not Website.query.filter_by(slug=clean_slug).first():
+            slug = clean_slug
+    if not slug:
+        slug = generate_railway_slug()
+    
+    if folder_choice and os.path.isdir(os.path.join(workspace, folder_choice)):
+        dest_folder = os.path.join(workspace, folder_choice)
+    else:
+        site_folder_name = f"site_{slug}"
+        dest_folder = os.path.join(workspace, site_folder_name)
+        os.makedirs(dest_folder, exist_ok=True)
+    
+    # Handle uploaded zip/html if provided
+    if 'site_file' in request.files and request.files['site_file'].filename:
+        uploaded = request.files['site_file']
+        orig_name = secure_filename(uploaded.filename) or uploaded.filename
+        temp_zip = os.path.join(UPLOADS_DIR, str(user_id), f"web_{int(time.time())}_{orig_name}")
+        os.makedirs(os.path.dirname(temp_zip), exist_ok=True)
+        uploaded.save(temp_zip)
+        if orig_name.lower().endswith(('.zip', '.tar.gz', '.tgz', '.tar')):
+            extract_archive(temp_zip, dest_folder)
+        elif orig_name.lower().endswith(('.html', '.htm')):
+            shutil.copy2(temp_zip, os.path.join(dest_folder, 'index.html'))
+        try:
+            if os.path.exists(temp_zip):
+                os.remove(temp_zip)
+        except Exception:
+            pass
+    
+    # Ensure index.html exists
+    index_file = os.path.join(dest_folder, 'index.html')
+    if not os.path.exists(index_file):
+        with open(index_file, 'w', encoding='utf-8') as f:
+            f.write(f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{site_name} - Aura Host</title>
+    <style>
+        body {{
+            background: #080b11;
+            color: #f3f4f6;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+            text-align: center;
+        }}
+        .card {{
+            background: rgba(17, 24, 39, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 3rem 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            max-width: 520px;
+            width: 100%;
+        }}
+        h1 {{
+            color: #00f2fe;
+            margin-bottom: 0.75rem;
+            font-size: 2rem;
+        }}
+        p {{
+            color: #9ca3af;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }}
+        .badge {{
+            display: inline-block;
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            padding: 0.35rem 1rem;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+        }}
+        .btn {{
+            display: inline-block;
+            background: linear-gradient(135deg, #6366f1, #06b6d4);
+            color: #fff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 700;
+            margin-top: 1rem;
+        }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="badge">&#x25CF; LIVE ON AURA HOST</div>
+        <h1>{site_name}</h1>
+        <p>Your web application is deployed online with a free generated domain.</p>
+        <p style="font-size: 0.85rem; color: #6b7280;">You can customize this page anytime by editing files inside your project directory in File Manager.</p>
+    </div>
+</body>
+</html>''')
+
+    new_site = Website(
+        user_id=user_id,
+        name=site_name,
+        slug=slug,
+        folder_path=dest_folder,
+        created_at=datetime.now(IST),
+        status='Active'
+    )
+    db_session.add(new_site)
+    db_session.commit()
+    
+    flash(f"Website '{site_name}' successfully deployed with free domain: /site/{slug}/", "success")
+    return redirect(url_for('websites'))
+
+@app.route('/websites/delete/<int:site_id>', methods=['POST'])
+@login_required
+def websites_delete(site_id):
+    user_id = session['user_id']
+    is_admin = session.get('is_admin', 0)
+    site = db_session.get(Website, site_id)
+    if not site:
+        flash("Website not found.", "danger")
+        return redirect(url_for('websites'))
+    if site.user_id != user_id and not is_admin:
+        flash("Access denied.", "danger")
+        return redirect(url_for('websites'))
+    
+    db_session.delete(site)
+    db_session.commit()
+    flash(f"Website '{site.name}' removed.", "info")
+    return redirect(url_for('websites'))
+
+# Public route to serve hosted websites with free Railway-style URL
+@app.route('/site/<slug>')
+@app.route('/site/<slug>/')
+@app.route('/site/<slug>/<path:subpath>')
+def serve_website(slug, subpath=None):
+    site = Website.query.filter_by(slug=slug).first()
+    if not site or not os.path.isdir(site.folder_path):
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><title>404 - Not Found</title></head>
+        <body style="background:#080b11;color:#fff;font-family:sans-serif;text-align:center;padding:5rem;">
+            <h1 style="color:#00f2fe;font-size:3rem;">404</h1>
+            <h2>Domain Not Found</h2>
+            <p style="color:#9ca3af;">The requested website slug '{slug}' is not active on this host.</p>
+        </body>
+        </html>
+        """, 404
+
+    target_path = site.folder_path
+    if subpath:
+        target_path = os.path.join(site.folder_path, subpath)
+
+    if os.path.isdir(target_path):
+        target_path = os.path.join(target_path, 'index.html')
+
+    if not os.path.isfile(target_path):
+        idx = os.path.join(site.folder_path, 'index.html')
+        if os.path.isfile(idx):
+            return send_file(idx)
+        return "File not found", 404
+
+    return send_file(target_path)
 
 @app.route('/deploy')
 @login_required
@@ -3365,6 +3747,47 @@ def api_delete(file_id):
 def api_system():
     cpu, mem, proc_count = get_system_load()
     return jsonify({'cpu': cpu, 'memory': mem, 'running': proc_count})
+
+@app.route('/api/terminal/run', methods=['POST'])
+@login_required
+def api_terminal_run():
+    user_id = session['user_id']
+    data = request.get_json(silent=True) or request.form
+    command = data.get('command', '').strip()
+    
+    if not command:
+        return jsonify({'success': False, 'output': 'Error: Empty command received.', 'exit_code': 1}), 400
+    
+    workspace = get_user_workspace(user_id)
+    
+    try:
+        # If user typed pip install / pip3 install
+        if command.startswith('pip install ') or command.startswith('pip3 install '):
+            pkg_args = command.split('install', 1)[1].strip()
+            cmd_exec = [sys.executable, "-m", "pip", "install"] + pkg_args.split() + ["--disable-pip-version-check"]
+            proc = subprocess.run(cmd_exec, cwd=workspace, capture_output=True, text=True, timeout=120)
+        elif command in ['pip list', 'pip3 list']:
+            cmd_exec = [sys.executable, "-m", "pip", "list"]
+            proc = subprocess.run(cmd_exec, cwd=workspace, capture_output=True, text=True, timeout=60)
+        elif command.startswith('python ') or command.startswith('python3 '):
+            py_args = command.split('python', 1)[1].strip()
+            cmd_exec = [sys.executable] + py_args.split()
+            proc = subprocess.run(cmd_exec, cwd=workspace, capture_output=True, text=True, timeout=30)
+        else:
+            proc = subprocess.run(command, cwd=workspace, shell=True, capture_output=True, text=True, timeout=60)
+        
+        out = proc.stdout or ''
+        err = proc.stderr or ''
+        combined = (out + "\n" + err).strip() if (out and err) else (out or err or "Command executed successfully with no output.")
+        return jsonify({
+            'success': proc.returncode == 0,
+            'output': combined,
+            'exit_code': proc.returncode
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'output': 'Execution timed out (limit exceeded).', 'exit_code': 124})
+    except Exception as e:
+        return jsonify({'success': False, 'output': f'Execution error: {str(e)}', 'exit_code': 1})
 
 @app.route('/debug')
 def debug():

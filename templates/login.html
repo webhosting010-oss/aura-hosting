@@ -3,42 +3,66 @@
 
 {% block content %}
 <div class="auth-wrapper">
-    <div class="auth-card">
+    <div class="auth-card pella-card">
         <div class="auth-header">
-            <div class="auth-brand-icon">
+            <div class="auth-brand-icon glow-purple">
                 <i class="fa-solid fa-bolt"></i>
             </div>
             <h1 class="auth-title">Welcome Back</h1>
-            <p class="auth-desc">Log in to manage your bots and server instances</p>
+            <p class="auth-desc">Log in to manage your cloud VPS instances, bots & web services</p>
         </div>
 
-        <!-- Email & Password Login Form -->
         <form method="POST" action="{{ url_for('login') }}" class="cyber-form">
             <div class="form-group">
                 <label class="form-label">Email Address</label>
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-envelope"></i>
-                    <input type="email" name="email" class="cyber-input" placeholder="name@example.com" required autocomplete="email">
+                    <input type="email" name="email" class="cyber-input" placeholder="you@domain.com" required autocomplete="email" autofocus>
                 </div>
             </div>
 
             <div class="form-group">
-                <label class="form-label">Password</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <label class="form-label" style="margin-bottom: 0;">Password</label>
+                    <a href="{{ url_for('forgot_password') }}" class="forgot-link">
+                        Forgot Password?
+                    </a>
+                </div>
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-lock"></i>
-                    <input type="password" name="password" class="cyber-input" placeholder="••••••••" required autocomplete="current-password">
+                    <input type="password" name="password" id="login-pass" class="cyber-input" placeholder="••••••••" required autocomplete="current-password">
+                    <button type="button" class="btn-toggle-eye" onclick="togglePass('login-pass', this)">
+                        <i class="fa-regular fa-eye"></i>
+                    </button>
                 </div>
             </div>
 
-            <button type="submit" class="btn-cyber-primary">
+            <button type="submit" class="btn-cyber-primary btn-block">
                 <i class="fa-solid fa-right-to-bracket"></i>
-                <span>Sign In</span>
+                <span>Sign In to Dashboard</span>
             </button>
         </form>
 
-        <p class="auth-footer-text">
-            Don't have an account? <a href="{{ url_for('register') }}">Create Account</a>
-        </p>
+        <div class="auth-footer-row">
+            <span>Don't have an account?</span>
+            <a href="{{ url_for('register') }}" class="auth-link">Create Account</a>
+        </div>
     </div>
 </div>
+
+<script>
+function togglePass(id, btn) {
+    const input = document.getElementById(id);
+    const icon = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+</script>
 {% endblock %}
