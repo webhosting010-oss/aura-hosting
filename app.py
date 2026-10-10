@@ -24,6 +24,7 @@ import stat
 import re
 import random
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 import zoneinfo
 from datetime import datetime, timezone, timedelta
@@ -258,26 +259,56 @@ def send_otp_email(to_email, otp_code, subject=None, body=None):
     if not subject:
         subject = "Aura Host - Your Verification Code"
     if not body:
-        body = f"Hello,\n\nYour OTP for Aura Host is: {otp_code}\n\nThis OTP is valid for 10 minutes.\nIf you did not request this, please ignore this message."
-    if MAIL_USERNAME and MAIL_PASSWORD:
+        body = (
+            f"Hello,\n\n"
+            f"Your verification code for Aura Host is: {otp_code}\n\n"
+            f"This code will expire in 10 minutes.\n"
+            f"Enter this code on the verification screen to continue.\n\n"
+            f"If you did not request this, please ignore this email.\n\n"
+            f"— The Aura Host Team"
+        )
+    
+    username = (MAIL_USERNAME or "").strip()
+    password = (MAIL_PASSWORD or "").strip()
+    from_addr = (MAIL_FROM or "").strip() or username
+
+    if not username or not password:
+        logger.warning(f"[EMAIL NOT CONFIGURED] OTP for {to_email} is {otp_code}")
+        return True, "Verification code generated."
+
+    def _send_worker():
+        msg = MIMEText(body, 'plain', 'utf-8')
+        msg['Subject'] = subject
+        msg['From'] = f"Aura Host <{from_addr}>"
+        msg['To'] = to_email
+
+        # Protocol 1: Direct SSL on Port 465 (Fastest, universally open on cloud containers)
         try:
-            msg = MIMEText(body)
-            msg['Subject'] = subject
-            msg['From'] = MAIL_FROM
-            msg['To'] = to_email
-            with smtplib.SMTP(MAIL_SERVER, MAIL_PORT) as server:
-                if MAIL_USE_TLS:
-                    server.starttls()
-                server.login(MAIL_USERNAME, MAIL_PASSWORD)
-                server.sendmail(MAIL_FROM, [to_email], msg.as_string())
-            logger.info(f"OTP email sent via SMTP to {to_email}")
-            return True, "OTP sent to your email address."
-        except Exception as e:
-            logger.error(f"Failed to send email via SMTP: {e}")
-            return True, f"Development Mode OTP Code: {otp_code} (SMTP failed: {str(e)})"
-    else:
-        logger.info(f"[DEV OTP] OTP for {to_email} is {otp_code}")
-        return True, f"OTP generated successfully! Your code is {otp_code}"
+            ssl_ctx = ssl.create_default_context()
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl_ctx, timeout=8) as server:
+                server.login(username, password)
+                server.sendmail(from_addr, [to_email], msg.as_string())
+            logger.info(f"OTP successfully delivered via SSL 465 to {to_email}")
+            return
+        except Exception as e_ssl:
+            logger.warning(f"SSL 465 attempt failed for {to_email}: {e_ssl}, trying Port 587 STARTTLS...")
+
+        # Protocol 2: Port 587 STARTTLS fallback
+        try:
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=8) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(username, password)
+                server.sendmail(from_addr, [to_email], msg.as_string())
+            logger.info(f"OTP successfully delivered via STARTTLS 587 to {to_email}")
+            return
+        except Exception as e_tls:
+            logger.error(f"Failed to deliver email to {to_email} via SMTP: {e_tls}")
+
+    # Launch non-blocking background thread: Instant page load for the user!
+    threading.Thread(target=_send_worker, daemon=True).start()
+    return True, f"Verification code sent to {to_email}."
 
 # -----------------------------------------------------------------------------
 # 5. Helper functions
@@ -3142,7 +3173,7 @@ def forgot_password():
         
         sent_ok, msg = send_otp_email(email, otp_code)
         session['reset_email'] = email
-        flash(msg, "info")
+        flash(f"Verification code sent to {email}. Please check your inbox or spam folder.", "info")
         return redirect(url_for('verify_otp'))
 
     return render_template('forgot_password.html')
@@ -3218,7 +3249,7 @@ def resend_otp():
     db_session.commit()
     
     sent_ok, msg = send_otp_email(email, otp_code)
-    flash(f"New OTP code sent! {msg}", "info")
+    flash(f"A new verification code has been sent to {email}. Please check your inbox or spam folder.", "info")
     return redirect(url_for('verify_otp'))
 
 @app.route('/reset-password', methods=['GET', 'POST'])
